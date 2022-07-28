@@ -1,7 +1,8 @@
+
 ///////////////////////////////////////////////////////////////////////////////
-//      Title     : ik_solver.hpp
+//      Title     : ap_planning.hpp
 //      Project   : ap_planning
-//      Created   : 07/27/2022
+//      Created   : 07/28/2022
 //      Author    : Adam Pettinger
 //      Copyright : Copyright© The University of Texas at Austin, 2014-2022. All
 //      rights reserved.
@@ -32,41 +33,42 @@
 
 #pragma once
 
+#include <pluginlib/class_loader.h>
 #include <ros/ros.h>
 #include <ap_closed_chain_planning/ik_solver_base.hpp>
 
-// #include <affordance_primitives/msg_types.hpp>
-// #include <optional>
-
-namespace ap_closed_chain_planning {
-
+namespace ap_planning {
 /**
- * Estimates the state of a task
+ * Handles planning an AP with a screw-based primitive
+ * This is mostly just holding an "IKSolver" type object, but handles the plugin loading internally
+ *
  */
-class IKSolver : public IKSolverBase {
+class APPlanner {
  public:
-  IKSolver(){};
-  ~IKSolver(){};
-
-  void initialize(const ros::NodeHandle& nh) override;
-
-  bool solveIK(const moveit::core::JointModelGroup* jmg,
-               const geometry_msgs::Pose& target_pose,
-               const std::string& ee_frame,
-               moveit::core::RobotState& robot_state,
-               trajectory_msgs::JointTrajectoryPoint& point) override;
-
-  ap_planning::Result verifyTransition(
-      const trajectory_msgs::JointTrajectoryPoint& point_a,
-      const trajectory_msgs::JointTrajectoryPoint& point_b) override;
-
-  /** Plans a joint trajectory based on an input Screw Axis
+  /** Constructor
    *
+   * @param nh ROS node handle
    */
+  APPlanner(const ros::NodeHandle& nh, const std::string action_name);
+
+  ~APPlanner(){};
+
+  bool initialize();
+
   ap_planning::Result plan(
       const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
       const moveit::core::RobotStatePtr& start_state,
       const std::string& ee_name,
-      trajectory_msgs::JointTrajectory& joint_trajectory) override;
+      trajectory_msgs::JointTrajectory& joint_trajectory);
+
+ protected:
+  // node handle
+  ros::NodeHandle nh_;
+
+  // This is the bread and butter
+  std::shared_ptr<
+      pluginlib::ClassLoader<ap_closed_chain_planning::IKSolverBase>>
+      solver_loader_;
+  boost::shared_ptr<ap_closed_chain_planning::IKSolverBase> ik_solver_;
 };
-}  // namespace ap_closed_chain_planning
+}  // namespace ap_planning

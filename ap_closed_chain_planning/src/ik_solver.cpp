@@ -8,14 +8,16 @@ void IKSolver::initialize(const ros::NodeHandle& nh) {
   nh_ = nh;
 
   // Get robot description and load model
-  std::string robot_description, move_group_name;
-  nh_.param<std::string>("robot_description", robot_description,
-                         "robot_description");
-  if (!nh_.getParam("move_group_name", move_group_name)) {
+  std::string robot_description_name, move_group_name;
+  nh_.param<std::string>(ros::this_node::getName() + "/robot_description_name",
+                         robot_description_name, "/robot_description");
+  if (!nh_.getParam(ros::this_node::getName() + "/move_group_name",
+                    move_group_name)) {
     // TODO something
   }
 
-  robot_model_loader::RobotModelLoader robot_model_loader(robot_description);
+  robot_model_loader::RobotModelLoader robot_model_loader(
+      robot_description_name);
   kinematic_model_ = robot_model_loader.getModel();
   joint_model_group_ = kinematic_model_->getJointModelGroup(move_group_name);
 }
@@ -65,9 +67,15 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
   ik_options.goals.emplace_back(minimal_displacement_goal);
 
   // Solve the IK
-  bool found_ik = robot_state.setFromIK(
-      jmg, geometry_msgs::Pose(), 0,
-      moveit::core::GroupStateValidityCallbackFn(), ik_options);
+  bool found_ik = false;
+  try {
+    found_ik = robot_state.setFromIK(
+        jmg, geometry_msgs::Pose(), 0,
+        moveit::core::GroupStateValidityCallbackFn(), ik_options);
+  } catch (std::runtime_error& ex) {
+    ROS_WARN_STREAM_THROTTLE(5, "Could not solve IK: " << ex.what());
+    return false;
+  }
 
   // Copy to the point
   robot_state.copyJointGroupPositions(jmg, point.positions);
@@ -77,7 +85,7 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
 
 ap_planning::Result IKSolver::plan(
     const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
-    const moveit::core::RobotStatePtr& start_state,
+    const moveit::core::RobotStatePtr& start_state, const std::string& ee_name,
     trajectory_msgs::JointTrajectory& joint_trajectory) {
   // Copy the state
   moveit::core::RobotState current_state(*start_state);
@@ -94,8 +102,7 @@ ap_planning::Result IKSolver::plan(
   // Note: these waypoints are defined in the screw's (PLANNING) frame
   for (auto& wp : affordance_traj.trajectory) {
     trajectory_msgs::JointTrajectoryPoint point;
-    if (!solveIK(joint_model_group_, wp.pose, "EE_frame", current_state,
-                 point)) {
+    if (!solveIK(joint_model_group_, wp.pose, ee_name, current_state, point)) {
       return ap_planning::NO_IK_SOLUTION;
     }
     if (joint_trajectory.points.size() > 0 &&

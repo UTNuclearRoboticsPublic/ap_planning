@@ -50,6 +50,7 @@ include_directories(
 
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
+  src/ap_planning.cpp
   src/ik_solver.cpp
 )
 

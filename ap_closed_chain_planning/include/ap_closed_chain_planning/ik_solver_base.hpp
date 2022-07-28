@@ -86,6 +86,7 @@ class IKSolverBase {
   virtual ap_planning::Result plan(
       const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
       const moveit::core::RobotStatePtr& start_state,
+      const std::string& ee_name,
       trajectory_msgs::JointTrajectory& joint_trajectory) = 0;
 
   virtual ~IKSolverBase(){};
