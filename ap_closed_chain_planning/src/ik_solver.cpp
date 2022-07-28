@@ -1,4 +1,5 @@
 #include <bio_ik/bio_ik.h>
+#include <affordance_primitives/screw_model/screw_execution.hpp>
 #include <ap_closed_chain_planning/ik_solver.hpp>
 
 #include <pluginlib/class_list_macros.h>
@@ -27,12 +28,12 @@ ap_planning::Result IKSolver::verifyTransition(
     const trajectory_msgs::JointTrajectoryPoint& point_b) {
   const double JOINT_TOLERANCE = 0.05;
   if (point_a.positions.size() != point_b.positions.size()) {
-    return ap_planning::INVALD_TRANSITION;
+    return ap_planning::INVALID_TRANSITION;
   }
   for (size_t i = 0; i < point_a.positions.size(); i++) {
     if (fabs(point_a.positions.at(i) - point_b.positions.at(i)) >
         JOINT_TOLERANCE) {
-      return ap_planning::INVALD_TRANSITION;
+      return ap_planning::INVALID_TRANSITION;
     }
   }
   return ap_planning::SUCCESS;
@@ -108,7 +109,7 @@ ap_planning::Result IKSolver::plan(
     if (joint_trajectory.points.size() > 0 &&
         verifyTransition(joint_trajectory.points.back(), point) !=
             ap_planning::SUCCESS) {
-      return ap_planning::INVALD_TRANSITION;
+      return ap_planning::INVALID_TRANSITION;
     }
     point.time_from_start = ros::Duration(time_from_start);
     time_from_start += time_inc;
@@ -116,6 +117,59 @@ ap_planning::Result IKSolver::plan(
   }
 
   return ap_planning::SUCCESS;
+}
+
+ap_planning::Result IKSolver::plan(
+    const affordance_primitive_msgs::AffordancePrimitiveGoal& ap_goal,
+    const moveit::core::RobotStatePtr& start_state,
+    trajectory_msgs::JointTrajectory& joint_trajectory) {
+  // Grab the ee_name
+  std::optional<geometry_msgs::TransformStamped> tfmsg_moving_to_task =
+      screw_executor_.getTFInfo(ap_goal);
+  if (!tfmsg_moving_to_task.has_value()) {
+    return ap_planning::INVALID_GOAL;
+  }
+  const std::string ee_name = tfmsg_moving_to_task->header.frame_id;
+
+  // Figure out how many waypoints to do
+  const size_t num_waypoints = calculateNumWaypoints(
+      ap_goal.screw, *tfmsg_moving_to_task, ap_goal.screw_distance);
+
+  // Generate the affordance trajectory
+  std::optional<affordance_primitives::AffordanceTrajectory> ap_trajectory =
+      screw_executor_.getTrajectoryCommands(ap_goal, num_waypoints);
+  if (!ap_trajectory.has_value()) {
+    return ap_planning::INVALID_GOAL;
+  }
+
+  // Do the planning
+  return plan(*ap_trajectory, start_state, ee_name, joint_trajectory);
+}
+
+size_t IKSolver::calculateNumWaypoints(
+    const affordance_primitive_msgs::ScrewStamped& screw_msg,
+    const geometry_msgs::TransformStamped& tf_msg, const double theta) {
+  // Some distance (m or rad) apart to put waypoints
+  const double d_meters = 0.005;
+  const double d_rads = 0.005;  // ~0.25 degree
+
+  // Pure translation case
+  if (screw_msg.is_pure_translation) {
+    return ceil(fabs(theta) / d_meters);
+  }
+
+  // Find the distance from moving frame to screw axis
+  Eigen::Vector3d tf_dist, screw_origin_dist;
+  tf2::fromMsg(tf_msg.transform.translation, tf_dist);
+  tf2::fromMsg(screw_msg.origin, screw_origin_dist);
+  const double screw_distance = (tf_dist + screw_origin_dist).norm();
+
+  // Calculate min waypoints for distance limiting and angle limiting
+  const size_t wps_ang = ceil(fabs(theta) / d_rads);
+  const size_t wps_lin = ceil(fabs(theta) * screw_distance / d_meters);
+
+  // Return whichever required more waypoints
+  return std::max(wps_ang, wps_lin);
 }
 }  // namespace ap_closed_chain_planning
 

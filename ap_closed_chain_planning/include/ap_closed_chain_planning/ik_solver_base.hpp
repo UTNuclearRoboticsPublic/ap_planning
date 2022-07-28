@@ -37,6 +37,7 @@
 
 #include <ros/ros.h>
 
+#include <affordance_primitive_msgs/AffordancePrimitiveAction.h>
 #include <affordance_primitive_msgs/AffordanceTrajectory.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
@@ -87,6 +88,11 @@ class IKSolverBase {
       const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
       const moveit::core::RobotStatePtr& start_state,
       const std::string& ee_name,
+      trajectory_msgs::JointTrajectory& joint_trajectory) = 0;
+
+  virtual ap_planning::Result plan(
+      const affordance_primitive_msgs::AffordancePrimitiveGoal& ap_goal,
+      const moveit::core::RobotStatePtr& start_state,
       trajectory_msgs::JointTrajectory& joint_trajectory) = 0;
 
   virtual ~IKSolverBase(){};

@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(ap_closed_chain_planning)
 
-## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++17)
+if(NOT "${CMAKE_CXX_STANDARD}")
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -34,6 +37,9 @@ catkin_package(
   ${PROJECT_NAME}
  CATKIN_DEPENDS
   affordance_primitive_msgs
+  affordance_primitives
+  bio_ik
+  moveit_core
 #  DEPENDS system_lib
 )
 

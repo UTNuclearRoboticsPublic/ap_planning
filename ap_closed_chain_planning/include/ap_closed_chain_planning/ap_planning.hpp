@@ -40,7 +40,8 @@
 namespace ap_planning {
 /**
  * Handles planning an AP with a screw-based primitive
- * This is mostly just holding an "IKSolver" type object, but handles the plugin loading internally
+ * This is mostly just holding an "IKSolver" type object, but handles the plugin
+ * loading internally
  *
  */
 class APPlanner {
@@ -59,6 +60,11 @@ class APPlanner {
       const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
       const moveit::core::RobotStatePtr& start_state,
       const std::string& ee_name,
+      trajectory_msgs::JointTrajectory& joint_trajectory);
+
+  ap_planning::Result plan(
+      const affordance_primitive_msgs::AffordancePrimitiveGoal& ap_goal,
+      const moveit::core::RobotStatePtr& start_state,
       trajectory_msgs::JointTrajectory& joint_trajectory);
 
  protected:

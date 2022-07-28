@@ -38,5 +38,5 @@
 // #include <optional>
 
 namespace ap_planning {
-enum Result { SUCCESS, NO_IK_SOLUTION, INVALD_TRANSITION };
+enum Result { SUCCESS, INVALID_GOAL, NO_IK_SOLUTION, INVALID_TRANSITION };
 }  // namespace ap_planning

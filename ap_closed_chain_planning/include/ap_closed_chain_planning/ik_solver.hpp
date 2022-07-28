@@ -68,5 +68,18 @@ class IKSolver : public IKSolverBase {
       const moveit::core::RobotStatePtr& start_state,
       const std::string& ee_name,
       trajectory_msgs::JointTrajectory& joint_trajectory) override;
+
+  ap_planning::Result plan(
+      const affordance_primitive_msgs::AffordancePrimitiveGoal& ap_goal,
+      const moveit::core::RobotStatePtr& start_state,
+      trajectory_msgs::JointTrajectory& joint_trajectory) override;
+
+ protected:
+  affordance_primitives::APScrewExecutor screw_executor_;
+
+  size_t calculateNumWaypoints(
+      const affordance_primitive_msgs::ScrewStamped& screw_msg,
+      const geometry_msgs::TransformStamped& tf_msg, const double theta);
 };
+
 }  // namespace ap_closed_chain_planning
