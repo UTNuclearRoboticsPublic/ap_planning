@@ -1,11 +1,46 @@
 #include <bio_ik/bio_ik.h>
 #include <ap_closed_chain_planning/ik_solver.hpp>
 
+#include <pluginlib/class_list_macros.h>
+
 namespace ap_closed_chain_planning {
-bool solveIK(const moveit::core::JointModelGroup* jmg,
-             const geometry_msgs::Pose& target_pose,
-             const std::string& ee_frame, moveit::core::RobotState& robot_state,
-             trajectory_msgs::JointTrajectoryPoint& point) {
+void IKSolver::initialize(const ros::NodeHandle& nh) {
+  nh_ = nh;
+
+  // Get robot description and load model
+  std::string robot_description, move_group_name;
+  nh_.param<std::string>("robot_description", robot_description,
+                         "robot_description");
+  if (!nh_.getParam("move_group_name", move_group_name)) {
+    // TODO something
+  }
+
+  robot_model_loader::RobotModelLoader robot_model_loader(robot_description);
+  kinematic_model_ = robot_model_loader.getModel();
+  joint_model_group_ = kinematic_model_->getJointModelGroup(move_group_name);
+}
+
+ap_planning::Result IKSolver::verifyTransition(
+    const trajectory_msgs::JointTrajectoryPoint& point_a,
+    const trajectory_msgs::JointTrajectoryPoint& point_b) {
+  const double JOINT_TOLERANCE = 0.05;
+  if (point_a.positions.size() != point_b.positions.size()) {
+    return ap_planning::INVALD_TRANSITION;
+  }
+  for (size_t i = 0; i < point_a.positions.size(); i++) {
+    if (fabs(point_a.positions.at(i) - point_b.positions.at(i)) >
+        JOINT_TOLERANCE) {
+      return ap_planning::INVALD_TRANSITION;
+    }
+  }
+  return ap_planning::SUCCESS;
+}
+
+bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
+                       const geometry_msgs::Pose& target_pose,
+                       const std::string& ee_frame,
+                       moveit::core::RobotState& robot_state,
+                       trajectory_msgs::JointTrajectoryPoint& point) {
   // Set up BioIK options
   bio_ik::BioIKKinematicsQueryOptions ik_options;
   ik_options.replace = true;
@@ -40,22 +75,6 @@ bool solveIK(const moveit::core::JointModelGroup* jmg,
   return found_ik;
 }
 
-void IKSolver::initialize(const ros::NodeHandle& nh) {
-  nh_ = nh;
-
-  // Get robot description and load model
-  std::string robot_description, move_group_name;
-  nh_.param<std::string>("robot_description", robot_description,
-                         "robot_description");
-  if (!nh_.getParam("move_group_name", move_group_name)) {
-    // TODO something
-  }
-
-  robot_model_loader::RobotModelLoader robot_model_loader(robot_description);
-  kinematic_model_ = robot_model_loader.getModel();
-  joint_model_group_ = kinematic_model_->getJointModelGroup(move_group_name);
-}
-
 ap_planning::Result IKSolver::plan(
     const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
     const moveit::core::RobotStatePtr& start_state,
@@ -79,11 +98,11 @@ ap_planning::Result IKSolver::plan(
                  point)) {
       return ap_planning::NO_IK_SOLUTION;
     }
-    // if (joint_trajectory.points.size() > 0 &&
-    //     !verify_step(joint_traj.trajectory.at(0).joint_trajectory.points.back(),
-    //                  point)) {
-    //   return ap_planning::INVALD_TRANSITION;
-    // }
+    if (joint_trajectory.points.size() > 0 &&
+        verifyTransition(joint_trajectory.points.back(), point) !=
+            ap_planning::SUCCESS) {
+      return ap_planning::INVALD_TRANSITION;
+    }
     point.time_from_start = ros::Duration(time_from_start);
     time_from_start += time_inc;
     joint_trajectory.points.push_back(point);
@@ -92,3 +111,6 @@ ap_planning::Result IKSolver::plan(
   return ap_planning::SUCCESS;
 }
 }  // namespace ap_closed_chain_planning
+
+PLUGINLIB_EXPORT_CLASS(ap_closed_chain_planning::IKSolver,
+                       ap_closed_chain_planning::IKSolverBase);

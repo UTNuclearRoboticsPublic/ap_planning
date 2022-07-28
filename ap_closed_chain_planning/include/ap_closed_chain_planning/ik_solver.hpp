@@ -40,21 +40,6 @@
 
 namespace ap_closed_chain_planning {
 
-/** Solves IK once
- *
- * @param jmg Valid JointModelGroup
- * @param target_pose The pose to solve for
- * @param ee_frame The frame to move to target_pose
- * @param robot_state The robot state. It is updated so the positions match the
- * solution
- * @param point The trajectory point to fill out
- * @return True if successful, false otherwise
- */
-bool solveIK(const moveit::core::JointModelGroup* jmg,
-             const geometry_msgs::Pose& target_pose,
-             const std::string& ee_frame, moveit::core::RobotState& robot_state,
-             trajectory_msgs::JointTrajectoryPoint& point);
-
 /**
  * Estimates the state of a task
  */
@@ -65,6 +50,16 @@ class IKSolver : public IKSolverBase {
 
   void initialize(const ros::NodeHandle& nh) override;
 
+  bool solveIK(const moveit::core::JointModelGroup* jmg,
+               const geometry_msgs::Pose& target_pose,
+               const std::string& ee_frame,
+               moveit::core::RobotState& robot_state,
+               trajectory_msgs::JointTrajectoryPoint& point) override;
+
+  ap_planning::Result verifyTransition(
+      const trajectory_msgs::JointTrajectoryPoint& point_a,
+      const trajectory_msgs::JointTrajectoryPoint& point_b) override;
+
   /** Plans a joint trajectory based on an input Screw Axis
    *
    */
@@ -72,9 +67,5 @@ class IKSolver : public IKSolverBase {
       const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
       const moveit::core::RobotStatePtr& start_state,
       trajectory_msgs::JointTrajectory& joint_trajectory) override;
-
-  ap_planning::Result verifyTransition(
-      const trajectory_msgs::JointTrajectoryPoint& point_a,
-      const trajectory_msgs::JointTrajectoryPoint& point_b) override;
 };
 }  // namespace ap_closed_chain_planning

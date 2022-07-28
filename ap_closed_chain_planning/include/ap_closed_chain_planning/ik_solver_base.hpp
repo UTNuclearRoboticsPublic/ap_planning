@@ -51,16 +51,21 @@ class IKSolverBase {
  public:
   virtual void initialize(const ros::NodeHandle& nh) = 0;
 
-  /** Plans a joint trajectory based on an input Screw Axis
+  /** Solves 1 IK request and updates the passed robot state and trajectory
+   * point
    *
-   * @param affordance_traj The Cartesian trajectory to plan for
-   * @param start_state The starting state of the robot
-   * @param joint_trajectory The joint trajectory that will be populated
+   * @param jmg Valid JointModelGroup
+   * @param target_pose The pose to solve for
+   * @param ee_frame The frame to move to target_pose
+   * @param robot_state The robot state. It is updated so the positions match
+   * the solution
+   * @param point The trajectory point to fill out
    */
-  virtual ap_planning::Result plan(
-      const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
-      const moveit::core::RobotStatePtr& start_state,
-      trajectory_msgs::JointTrajectory& joint_trajectory) = 0;
+  virtual bool solveIK(const moveit::core::JointModelGroup* jmg,
+                       const geometry_msgs::Pose& target_pose,
+                       const std::string& ee_frame,
+                       moveit::core::RobotState& robot_state,
+                       trajectory_msgs::JointTrajectoryPoint& point) = 0;
 
   /** Verifies that the robot transitioning from A to B is valid
    *
@@ -71,6 +76,17 @@ class IKSolverBase {
   virtual ap_planning::Result verifyTransition(
       const trajectory_msgs::JointTrajectoryPoint& point_a,
       const trajectory_msgs::JointTrajectoryPoint& point_b) = 0;
+
+  /** Plans a joint trajectory based on an input Screw Axis
+   *
+   * @param affordance_traj The Cartesian trajectory to plan for
+   * @param start_state The starting state of the robot
+   * @param joint_trajectory The joint trajectory that will be populated
+   */
+  virtual ap_planning::Result plan(
+      const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
+      const moveit::core::RobotStatePtr& start_state,
+      trajectory_msgs::JointTrajectory& joint_trajectory) = 0;
 
   virtual ~IKSolverBase(){};
 
