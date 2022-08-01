@@ -50,7 +50,7 @@ namespace ap_closed_chain_planning {
  */
 class IKSolverBase {
  public:
-  virtual void initialize(const ros::NodeHandle& nh) = 0;
+  virtual bool initialize(const ros::NodeHandle& nh) = 0;
 
   /** Solves 1 IK request and updates the passed robot state and trajectory
    * point

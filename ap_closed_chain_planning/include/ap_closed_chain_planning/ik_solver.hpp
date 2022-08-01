@@ -48,7 +48,7 @@ class IKSolver : public IKSolverBase {
   IKSolver(){};
   ~IKSolver(){};
 
-  void initialize(const ros::NodeHandle& nh) override;
+  bool initialize(const ros::NodeHandle& nh) override;
 
   bool solveIK(const moveit::core::JointModelGroup* jmg,
                const geometry_msgs::Pose& target_pose,

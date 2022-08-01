@@ -19,18 +19,21 @@ bool APPlanner::initialize() {
       "ap_closed_chain_planning", "ap_closed_chain_planning::IKSolverBase");
   try {
     ik_solver_ = solver_loader_->createInstance(ik_solver_name);
-    ik_solver_->initialize(nh_);
   } catch (pluginlib::PluginlibException& ex) {
     ROS_ERROR("Solver plugin failed to load, error was: %s", ex.what());
     return false;
   }
-  return true;
+  return ik_solver_->initialize(nh_);
 }
 
 ap_planning::Result APPlanner::plan(
     const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
     const moveit::core::RobotStatePtr& start_state, const std::string& ee_name,
     trajectory_msgs::JointTrajectory& joint_trajectory) {
+  // If we haven't already initialized, do so
+  if (!ik_solver_ && !initialize()) {
+    return ap_planning::INITIALIZATION_FAIL;
+  }
   return ik_solver_->plan(affordance_traj, start_state, ee_name,
                           joint_trajectory);
 }
@@ -39,6 +42,10 @@ ap_planning::Result APPlanner::plan(
     const affordance_primitive_msgs::AffordancePrimitiveGoal& ap_goal,
     const moveit::core::RobotStatePtr& start_state,
     trajectory_msgs::JointTrajectory& joint_trajectory) {
+  // If we haven't already initialized, do so
+  if (!ik_solver_ && !initialize()) {
+    return ap_planning::INITIALIZATION_FAIL;
+  }
   return ik_solver_->plan(ap_goal, start_state, joint_trajectory);
 }
 

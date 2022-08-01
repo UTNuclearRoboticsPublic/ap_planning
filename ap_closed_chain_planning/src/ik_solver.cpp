@@ -5,7 +5,7 @@
 #include <pluginlib/class_list_macros.h>
 
 namespace ap_closed_chain_planning {
-void IKSolver::initialize(const ros::NodeHandle& nh) {
+bool IKSolver::initialize(const ros::NodeHandle& nh) {
   nh_ = nh;
 
   // Get robot description and load model
@@ -14,13 +14,14 @@ void IKSolver::initialize(const ros::NodeHandle& nh) {
                          robot_description_name, "/robot_description");
   if (!nh_.getParam(ros::this_node::getName() + "/move_group_name",
                     move_group_name)) {
-    // TODO something
+    return false;
   }
 
   robot_model_loader::RobotModelLoader robot_model_loader(
       robot_description_name);
   kinematic_model_ = robot_model_loader.getModel();
   joint_model_group_ = kinematic_model_->getJointModelGroup(move_group_name);
+  return true;
 }
 
 ap_planning::Result IKSolver::verifyTransition(
