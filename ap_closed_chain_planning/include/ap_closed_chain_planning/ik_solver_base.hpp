@@ -32,7 +32,6 @@
 
 #pragma once
 
-// #include <memory>
 #include <string>
 
 #include <ros/ros.h>
@@ -78,11 +77,13 @@ class IKSolverBase {
       const trajectory_msgs::JointTrajectoryPoint& point_a,
       const trajectory_msgs::JointTrajectoryPoint& point_b) = 0;
 
-  /** Plans a joint trajectory based on an input Screw Axis
+  /** Plans a joint trajectory based on an affordance trajectory
    *
    * @param affordance_traj The Cartesian trajectory to plan for
    * @param start_state The starting state of the robot
+   * @param ee_name The name of the EE link
    * @param joint_trajectory The joint trajectory that will be populated
+   * @return The result
    */
   virtual ap_planning::Result plan(
       const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
@@ -90,6 +91,13 @@ class IKSolverBase {
       const std::string& ee_name,
       trajectory_msgs::JointTrajectory& joint_trajectory) = 0;
 
+  /** Plans a joint trajectory based on an Affordance Primitive goal
+   *
+   * @param ap_goal The AP goal message
+   * @param start_state The starting state of the robot
+   * @param joint_trajectory The joint trajectory that will be populated
+   * @return The result
+   */
   virtual ap_planning::Result plan(
       const affordance_primitive_msgs::AffordancePrimitiveGoal& ap_goal,
       const moveit::core::RobotStatePtr& start_state,

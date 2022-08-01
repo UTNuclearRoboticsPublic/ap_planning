@@ -32,11 +32,6 @@
 
 #pragma once
 
-// #include <ros/ros.h>
-
-// #include <affordance_primitives/msg_types.hpp>
-// #include <optional>
-
 namespace ap_planning {
 enum Result {
   SUCCESS,

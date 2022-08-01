@@ -1,9 +1,7 @@
 #include <ap_closed_chain_planning/ap_planning.hpp>
 
 namespace ap_planning {
-APPlanner::APPlanner(const ros::NodeHandle& nh, const std::string action_name) {
-  nh_ = nh;
-}
+APPlanner::APPlanner(const ros::NodeHandle& nh) { nh_ = nh; }
 
 bool APPlanner::initialize() {
   // Read the solver name from the parameter server

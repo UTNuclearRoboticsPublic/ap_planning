@@ -50,8 +50,7 @@ class APPlanner {
    *
    * @param nh ROS node handle
    */
-  APPlanner(const ros::NodeHandle& nh, const std::string action_name);
-
+  APPlanner(const ros::NodeHandle& nh);
   ~APPlanner(){};
 
   bool initialize();
@@ -70,6 +69,7 @@ class APPlanner {
  protected:
   // node handle
   ros::NodeHandle nh_;
+  ros::ServiceServer planning_server_;
 
   // This is the bread and butter
   std::shared_ptr<

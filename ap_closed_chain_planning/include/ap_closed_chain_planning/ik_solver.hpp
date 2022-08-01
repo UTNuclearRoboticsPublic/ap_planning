@@ -35,9 +35,6 @@
 #include <ros/ros.h>
 #include <ap_closed_chain_planning/ik_solver_base.hpp>
 
-// #include <affordance_primitives/msg_types.hpp>
-// #include <optional>
-
 namespace ap_closed_chain_planning {
 
 /**
@@ -48,20 +45,49 @@ class IKSolver : public IKSolverBase {
   IKSolver(){};
   ~IKSolver(){};
 
+  /** Initializes the solver by looking up ROS parameters for:
+   * robot_description_name and move_group_name
+   *
+   * @param nh Parameters are considered to be namespaced to this node
+   * @return False if the parameters couldn't be found, true otherwise
+   */
   bool initialize(const ros::NodeHandle& nh) override;
 
+  /** Solves 1 IK request using BioIK with the "Minimal Displacement" subgoal
+   *
+   * @param jmg Valid JointModelGroup
+   * @param target_pose The pose to solve for
+   * @param ee_frame The frame to move to target_pose
+   * @param robot_state The robot state. It is updated so the positions match
+   * the solution
+   * @param point The trajectory point to fill out
+   * @return True if a solution was found, false otherwise
+   */
   bool solveIK(const moveit::core::JointModelGroup* jmg,
                const geometry_msgs::Pose& target_pose,
                const std::string& ee_frame,
                moveit::core::RobotState& robot_state,
                trajectory_msgs::JointTrajectoryPoint& point) override;
 
+  /** Verifies a single joint state transition
+   *
+   * Checks each joint doesn't move too much, and TODO checks for singularity
+   *
+   * @param point_a The start point (joint state)
+   * @param point_b The end point (joint state)
+   * @return The result
+   */
   ap_planning::Result verifyTransition(
       const trajectory_msgs::JointTrajectoryPoint& point_a,
       const trajectory_msgs::JointTrajectoryPoint& point_b) override;
 
-  /** Plans a joint trajectory based on an input Screw Axis
+  /** Plans a joint trajectory based on an affordance trajectory
    *
+   * @param affordance_traj The Cartesian trajectory to plan for
+   * @param start_state The starting state of the robot
+   * @param ee_name The name of the EE link
+   * @param joint_trajectory The joint trajectory that will be populated
+   * @return The result
    */
   ap_planning::Result plan(
       const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
@@ -69,6 +95,13 @@ class IKSolver : public IKSolverBase {
       const std::string& ee_name,
       trajectory_msgs::JointTrajectory& joint_trajectory) override;
 
+  /** Plans a joint trajectory based on an Affordance Primitive goal
+   *
+   * @param ap_goal The AP goal message
+   * @param start_state The starting state of the robot
+   * @param joint_trajectory The joint trajectory that will be populated
+   * @return The result
+   */
   ap_planning::Result plan(
       const affordance_primitive_msgs::AffordancePrimitiveGoal& ap_goal,
       const moveit::core::RobotStatePtr& start_state,
