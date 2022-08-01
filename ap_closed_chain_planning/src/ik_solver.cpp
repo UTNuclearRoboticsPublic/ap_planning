@@ -22,26 +22,68 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
   nh_.param<double>(n_name + "/waypoint_ang", waypoint_ang_, WAYPOINT_ANG);
   nh_.param<double>(n_name + "/joint_tolerance", joint_tolerance_,
                     JOINT_TOLERANCE);
+  nh_.param<double>(n_name + "/condition_num_limit", condition_num_limit_,
+                    CONDITION_NUM_LIMIT);
 
+  // Load the robot
   robot_model_loader::RobotModelLoader robot_model_loader(
       robot_description_name);
   kinematic_model_ = robot_model_loader.getModel();
   joint_model_group_ = kinematic_model_->getJointModelGroup(move_group_name);
+
   return true;
 }
 
 ap_planning::Result IKSolver::verifyTransition(
     const trajectory_msgs::JointTrajectoryPoint& point_a,
-    const trajectory_msgs::JointTrajectoryPoint& point_b) {
+    const trajectory_msgs::JointTrajectoryPoint& point_b,
+    const moveit::core::JointModelGroup* jmg,
+    moveit::core::RobotState& state_b) {
   if (point_a.positions.size() != point_b.positions.size()) {
     return ap_planning::INVALID_TRANSITION;
   }
+
+  // Check joint diffs for large deltas (joint reconfigurations)
   for (size_t i = 0; i < point_a.positions.size(); i++) {
     if (fabs(point_a.positions.at(i) - point_b.positions.at(i)) >
         joint_tolerance_) {
       return ap_planning::INVALID_TRANSITION;
     }
   }
+
+  // Check joint velocities
+  const double wp_duration =
+      (point_b.time_from_start - point_a.time_from_start).toSec();
+  if (wp_duration <= 0) {
+    ROS_WARN_STREAM_THROTTLE(5, "Time between waypoints must be positive");
+    return ap_planning::INVALID_TRANSITION;
+  }
+
+  // Go through each joint
+  size_t i = 0;
+  for (const moveit::core::JointModel* joint : jmg->getActiveJointModels()) {
+    const auto& bounds = joint->getVariableBounds(joint->getName());
+    if (bounds.velocity_bounded_) {
+      const double vel =
+          (point_b.positions.at(i) - point_a.positions.at(i)) / wp_duration;
+      if (vel > bounds.max_velocity_ || vel < bounds.min_velocity_) {
+        ROS_WARN_STREAM_THROTTLE(5, "Velocity limit exceeded");
+        return ap_planning::INVALID_TRANSITION;
+      }
+    }
+    ++i;
+  }
+
+  // Check for a singular position
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(state_b.getJacobian(jmg));
+  const double cond_number =
+      svd.singularValues()[0] /
+      svd.singularValues()[svd.singularValues().size() - 1];
+  if (cond_number > condition_num_limit_) {
+    ROS_WARN_STREAM_THROTTLE(5, "Singularity");
+    return ap_planning::INVALID_TRANSITION;
+  }
+
   return ap_planning::SUCCESS;
 }
 
@@ -105,15 +147,16 @@ ap_planning::Result IKSolver::plan(
   // Note: these waypoints are defined in the screw's (PLANNING) frame
   for (auto& wp : affordance_traj.trajectory) {
     trajectory_msgs::JointTrajectoryPoint point;
+    point.time_from_start = wp.time_from_start;
     if (!solveIK(joint_model_group_, wp.pose, ee_name, current_state, point)) {
       return ap_planning::NO_IK_SOLUTION;
     }
     if (joint_trajectory.points.size() > 0 &&
-        verifyTransition(joint_trajectory.points.back(), point) !=
-            ap_planning::SUCCESS) {
+        verifyTransition(joint_trajectory.points.back(), point,
+                         joint_model_group_,
+                         current_state) != ap_planning::SUCCESS) {
       return ap_planning::INVALID_TRANSITION;
     }
-    point.time_from_start = wp.time_from_start;
     joint_trajectory.points.push_back(point);
   }
 

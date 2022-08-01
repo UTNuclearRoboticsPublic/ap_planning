@@ -41,6 +41,7 @@ namespace ap_closed_chain_planning {
 const double JOINT_TOLERANCE = 0.05;  // radians
 const double WAYPOINT_DIST = 0.005;   // meters
 const double WAYPOINT_ANG = 0.01;     // radians, ~0.5 degrees
+const double CONDITION_NUM_LIMIT = 100;
 
 /**
  * Estimates the state of a task
@@ -55,7 +56,7 @@ class IKSolver : public IKSolverBase {
    * Required: move_group_name
    *
    * Optional: robot_description_name, joint_tolerance, waypoint_dist,
-   * waypoint_ang
+   * waypoint_ang, condition_num_limit
    *
    * @param nh Parameters are considered to be namespaced to this node
    * @return False if the parameters couldn't be found, true otherwise
@@ -88,7 +89,9 @@ class IKSolver : public IKSolverBase {
    */
   ap_planning::Result verifyTransition(
       const trajectory_msgs::JointTrajectoryPoint& point_a,
-      const trajectory_msgs::JointTrajectoryPoint& point_b) override;
+      const trajectory_msgs::JointTrajectoryPoint& point_b,
+      const moveit::core::JointModelGroup* jmg,
+      moveit::core::RobotState& state_b) override;
 
   /** Plans a joint trajectory based on an affordance trajectory
    *
@@ -122,6 +125,7 @@ class IKSolver : public IKSolverBase {
   // Planning parameters
   double joint_tolerance_;
   double waypoint_dist_, waypoint_ang_;
+  double condition_num_limit_;
 
   size_t calculateNumWaypoints(
       const affordance_primitive_msgs::ScrewStamped& screw_msg,
