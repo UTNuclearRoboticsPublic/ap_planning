@@ -7,15 +7,21 @@
 namespace ap_closed_chain_planning {
 bool IKSolver::initialize(const ros::NodeHandle& nh) {
   nh_ = nh;
+  const std::string n_name = ros::this_node::getName();
 
   // Get robot description and load model
   std::string robot_description_name, move_group_name;
-  nh_.param<std::string>(ros::this_node::getName() + "/robot_description_name",
+  nh_.param<std::string>(n_name + "/robot_description_name",
                          robot_description_name, "/robot_description");
-  if (!nh_.getParam(ros::this_node::getName() + "/move_group_name",
-                    move_group_name)) {
+  if (!nh_.getParam(n_name + "/move_group_name", move_group_name)) {
     return false;
   }
+
+  // Get planning parameters
+  nh_.param<double>(n_name + "/waypoint_dist", waypoint_dist_, WAYPOINT_DIST);
+  nh_.param<double>(n_name + "/waypoint_ang", waypoint_ang_, WAYPOINT_ANG);
+  nh_.param<double>(n_name + "/joint_tolerance", joint_tolerance_,
+                    JOINT_TOLERANCE);
 
   robot_model_loader::RobotModelLoader robot_model_loader(
       robot_description_name);
@@ -27,13 +33,12 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
 ap_planning::Result IKSolver::verifyTransition(
     const trajectory_msgs::JointTrajectoryPoint& point_a,
     const trajectory_msgs::JointTrajectoryPoint& point_b) {
-  const double JOINT_TOLERANCE = 0.05;
   if (point_a.positions.size() != point_b.positions.size()) {
     return ap_planning::INVALID_TRANSITION;
   }
   for (size_t i = 0; i < point_a.positions.size(); i++) {
     if (fabs(point_a.positions.at(i) - point_b.positions.at(i)) >
-        JOINT_TOLERANCE) {
+        joint_tolerance_) {
       return ap_planning::INVALID_TRANSITION;
     }
   }
@@ -92,10 +97,6 @@ ap_planning::Result IKSolver::plan(
   // Copy the state
   moveit::core::RobotState current_state(*start_state);
 
-  // Trajectory time
-  double time_from_start{0.0};
-  const double time_inc{0.05};
-
   // Output trajectory setup
   joint_trajectory.header.frame_id = kinematic_model_->getModelFrame();
   joint_trajectory.joint_names = joint_model_group_->getVariableNames();
@@ -112,8 +113,7 @@ ap_planning::Result IKSolver::plan(
             ap_planning::SUCCESS) {
       return ap_planning::INVALID_TRANSITION;
     }
-    point.time_from_start = ros::Duration(time_from_start);
-    time_from_start += time_inc;
+    point.time_from_start = wp.time_from_start;
     joint_trajectory.points.push_back(point);
   }
 
@@ -150,13 +150,9 @@ ap_planning::Result IKSolver::plan(
 size_t IKSolver::calculateNumWaypoints(
     const affordance_primitive_msgs::ScrewStamped& screw_msg,
     const geometry_msgs::TransformStamped& tf_msg, const double theta) {
-  // Some distance (m or rad) apart to put waypoints
-  const double d_meters = 0.005;
-  const double d_rads = 0.005;  // ~0.25 degree
-
   // Pure translation case
   if (screw_msg.is_pure_translation) {
-    return ceil(fabs(theta) / d_meters);
+    return ceil(fabs(theta) / waypoint_dist_);
   }
 
   // Find the distance from moving frame to screw axis
@@ -166,8 +162,8 @@ size_t IKSolver::calculateNumWaypoints(
   const double screw_distance = (tf_dist + screw_origin_dist).norm();
 
   // Calculate min waypoints for distance limiting and angle limiting
-  const size_t wps_ang = ceil(fabs(theta) / d_rads);
-  const size_t wps_lin = ceil(fabs(theta) * screw_distance / d_meters);
+  const size_t wps_ang = ceil(fabs(theta) / waypoint_ang_);
+  const size_t wps_lin = ceil(fabs(theta) * screw_distance / waypoint_dist_);
 
   // Return whichever required more waypoints
   return std::max(wps_ang, wps_lin);

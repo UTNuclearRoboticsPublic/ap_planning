@@ -37,6 +37,11 @@
 
 namespace ap_closed_chain_planning {
 
+// Some defaults if parameters are not found
+const double JOINT_TOLERANCE = 0.05;  // radians
+const double WAYPOINT_DIST = 0.005;   // meters
+const double WAYPOINT_ANG = 0.01;     // radians, ~0.5 degrees
+
 /**
  * Estimates the state of a task
  */
@@ -46,7 +51,11 @@ class IKSolver : public IKSolverBase {
   ~IKSolver(){};
 
   /** Initializes the solver by looking up ROS parameters for:
-   * robot_description_name and move_group_name
+   *
+   * Required: move_group_name
+   *
+   * Optional: robot_description_name, joint_tolerance, waypoint_dist,
+   * waypoint_ang
    *
    * @param nh Parameters are considered to be namespaced to this node
    * @return False if the parameters couldn't be found, true otherwise
@@ -109,6 +118,10 @@ class IKSolver : public IKSolverBase {
 
  protected:
   affordance_primitives::APScrewExecutor screw_executor_;
+
+  // Planning parameters
+  double joint_tolerance_;
+  double waypoint_dist_, waypoint_ang_;
 
   size_t calculateNumWaypoints(
       const affordance_primitive_msgs::ScrewStamped& screw_msg,
