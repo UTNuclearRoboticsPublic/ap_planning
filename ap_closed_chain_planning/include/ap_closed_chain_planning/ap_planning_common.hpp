@@ -32,6 +32,8 @@
 
 #pragma once
 
+#include <string>
+
 namespace ap_planning {
 enum Result {
   SUCCESS,
@@ -40,4 +42,20 @@ enum Result {
   NO_IK_SOLUTION,
   INVALID_TRANSITION
 };
+
+std::string toStr(const Result result) {
+  switch (result) {
+    case SUCCESS:
+      return "Success";
+    case INITIALIZATION_FAIL:
+      return "Failed initialization";
+    case INVALID_GOAL:
+      return "Recieved invalid goal";
+    case NO_IK_SOLUTION:
+      return "Could not solve IK";
+    case INVALID_TRANSITION:
+      return "Invalid transition";
+  }
+  return "Unknown code";
+}
 }  // namespace ap_planning
