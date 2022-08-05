@@ -43,7 +43,7 @@ enum Result {
   INVALID_TRANSITION
 };
 
-std::string toStr(const Result result) {
+inline std::string toStr(const Result result) {
   switch (result) {
     case SUCCESS:
       return "Success";

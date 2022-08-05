@@ -85,13 +85,15 @@ class IKSolver : public IKSolverBase {
    *
    * @param point_a The start point (joint state)
    * @param point_b The end point (joint state)
+   * @param jmg Joint model group for checking velocity limits
+   * @param state_b The end robot state
    * @return The result
    */
   ap_planning::Result verifyTransition(
       const trajectory_msgs::JointTrajectoryPoint& point_a,
       const trajectory_msgs::JointTrajectoryPoint& point_b,
       const moveit::core::JointModelGroup* jmg,
-      moveit::core::RobotState& state_b) override;
+      const moveit::core::RobotState& state_b) override;
 
   /** Plans a joint trajectory based on an affordance trajectory
    *

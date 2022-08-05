@@ -25,11 +25,16 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
   nh_.param<double>(n_name + "/condition_num_limit", condition_num_limit_,
                     CONDITION_NUM_LIMIT);
 
-  // Load the robot
   robot_model_loader::RobotModelLoader robot_model_loader(
       robot_description_name);
   kinematic_model_ = robot_model_loader.getModel();
+  if (!kinematic_model_) {
+    return false;
+  }
   joint_model_group_ = kinematic_model_->getJointModelGroup(move_group_name);
+  if (!joint_model_group_) {
+    return false;
+  }
 
   return true;
 }
@@ -38,7 +43,7 @@ ap_planning::Result IKSolver::verifyTransition(
     const trajectory_msgs::JointTrajectoryPoint& point_a,
     const trajectory_msgs::JointTrajectoryPoint& point_b,
     const moveit::core::JointModelGroup* jmg,
-    moveit::core::RobotState& state_b) {
+    const moveit::core::RobotState& state_b) {
   if (point_a.positions.size() != point_b.positions.size()) {
     return ap_planning::INVALID_TRANSITION;
   }
@@ -80,7 +85,7 @@ ap_planning::Result IKSolver::verifyTransition(
       svd.singularValues()[0] /
       svd.singularValues()[svd.singularValues().size() - 1];
   if (cond_number > condition_num_limit_) {
-    ROS_WARN_STREAM_THROTTLE(5, "Singularity");
+    ROS_WARN_STREAM_THROTTLE(5, "Singularity: " << cond_number);
     return ap_planning::INVALID_TRANSITION;
   }
 
@@ -95,7 +100,6 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
   // Set up BioIK options
   bio_ik::BioIKKinematicsQueryOptions ik_options;
   ik_options.replace = true;
-  ik_options.return_approximate_solution = true;
 
   // Set up Pose goal
   auto* pose_goal = new bio_ik::PoseGoal();
@@ -119,7 +123,7 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
   bool found_ik = false;
   try {
     found_ik = robot_state.setFromIK(
-        jmg, geometry_msgs::Pose(), 0,
+        jmg, geometry_msgs::Pose(), ee_frame, 0.0,
         moveit::core::GroupStateValidityCallbackFn(), ik_options);
   } catch (std::runtime_error& ex) {
     ROS_WARN_STREAM_THROTTLE(5, "Could not solve IK: " << ex.what());
@@ -137,7 +141,7 @@ ap_planning::Result IKSolver::plan(
     const moveit::core::RobotStatePtr& start_state, const std::string& ee_name,
     trajectory_msgs::JointTrajectory& joint_trajectory) {
   // Copy the state
-  moveit::core::RobotState current_state(*start_state);
+  moveit::core::RobotState current_state = *start_state;
 
   // Output trajectory setup
   joint_trajectory.header.frame_id = kinematic_model_->getModelFrame();
@@ -151,6 +155,7 @@ ap_planning::Result IKSolver::plan(
     if (!solveIK(joint_model_group_, wp.pose, ee_name, current_state, point)) {
       return ap_planning::NO_IK_SOLUTION;
     }
+    // TODO: check first IK solution is close to start
     if (joint_trajectory.points.size() > 0 &&
         verifyTransition(joint_trajectory.points.back(), point,
                          joint_model_group_,

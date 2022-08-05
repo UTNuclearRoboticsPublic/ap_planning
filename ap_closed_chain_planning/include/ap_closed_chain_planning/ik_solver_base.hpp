@@ -79,7 +79,7 @@ class IKSolverBase {
       const trajectory_msgs::JointTrajectoryPoint& point_a,
       const trajectory_msgs::JointTrajectoryPoint& point_b,
       const moveit::core::JointModelGroup* jmg,
-      moveit::core::RobotState& state_b) = 0;
+      const moveit::core::RobotState& state_b) = 0;
 
   /** Plans a joint trajectory based on an affordance trajectory
    *
