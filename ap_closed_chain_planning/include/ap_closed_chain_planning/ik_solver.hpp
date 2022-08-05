@@ -132,6 +132,16 @@ class IKSolver : public IKSolverBase {
   size_t calculateNumWaypoints(
       const affordance_primitive_msgs::ScrewStamped& screw_msg,
       const geometry_msgs::TransformStamped& tf_msg, const double theta);
+
+  /** General check to make sure 2 joint states are relatively close together
+   *
+   * @param point_a The start point (joint state)
+   * @param point_b The end point (joint state)
+   * @return The result
+   */
+  bool checkPointsAreClose(
+      const trajectory_msgs::JointTrajectoryPoint& point_a,
+      const trajectory_msgs::JointTrajectoryPoint& point_b);
 };
 
 }  // namespace ap_closed_chain_planning

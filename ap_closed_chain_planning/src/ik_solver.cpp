@@ -39,11 +39,9 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
   return true;
 }
 
-ap_planning::Result IKSolver::verifyTransition(
+bool IKSolver::checkPointsAreClose(
     const trajectory_msgs::JointTrajectoryPoint& point_a,
-    const trajectory_msgs::JointTrajectoryPoint& point_b,
-    const moveit::core::JointModelGroup* jmg,
-    const moveit::core::RobotState& state_b) {
+    const trajectory_msgs::JointTrajectoryPoint& point_b) {
   if (point_a.positions.size() != point_b.positions.size()) {
     return ap_planning::INVALID_TRANSITION;
   }
@@ -52,8 +50,20 @@ ap_planning::Result IKSolver::verifyTransition(
   for (size_t i = 0; i < point_a.positions.size(); i++) {
     if (fabs(point_a.positions.at(i) - point_b.positions.at(i)) >
         joint_tolerance_) {
-      return ap_planning::INVALID_TRANSITION;
+      return false;
     }
+  }
+  return true;
+}
+
+ap_planning::Result IKSolver::verifyTransition(
+    const trajectory_msgs::JointTrajectoryPoint& point_a,
+    const trajectory_msgs::JointTrajectoryPoint& point_b,
+    const moveit::core::JointModelGroup* jmg,
+    const moveit::core::RobotState& state_b) {
+  // Do broad face check to avoid joint reconfigurations
+  if (!checkPointsAreClose(point_a, point_b)) {
+    return ap_planning::INVALID_TRANSITION;
   }
 
   // Check joint velocities
@@ -123,7 +133,7 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
   bool found_ik = false;
   try {
     found_ik = robot_state.setFromIK(
-        jmg, geometry_msgs::Pose(), ee_frame, 0.0,
+        jmg, target_pose, ee_frame, 0.0,
         moveit::core::GroupStateValidityCallbackFn(), ik_options);
   } catch (std::runtime_error& ex) {
     ROS_WARN_STREAM_THROTTLE(5, "Could not solve IK: " << ex.what());
@@ -132,6 +142,7 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
 
   // Copy to the point
   robot_state.copyJointGroupPositions(jmg, point.positions);
+  robot_state.update();
 
   return found_ik;
 }
@@ -147,6 +158,11 @@ ap_planning::Result IKSolver::plan(
   joint_trajectory.header.frame_id = kinematic_model_->getModelFrame();
   joint_trajectory.joint_names = joint_model_group_->getVariableNames();
 
+  // We will check the first IK solution is close to the starting state
+  trajectory_msgs::JointTrajectoryPoint starting_point;
+  current_state.copyJointGroupPositions(joint_model_group_,
+                                        starting_point.positions);
+
   // Rip through trajectory and plan
   // Note: these waypoints are defined in the screw's (PLANNING) frame
   for (auto& wp : affordance_traj.trajectory) {
@@ -155,12 +171,20 @@ ap_planning::Result IKSolver::plan(
     if (!solveIK(joint_model_group_, wp.pose, ee_name, current_state, point)) {
       return ap_planning::NO_IK_SOLUTION;
     }
-    // TODO: check first IK solution is close to start
-    if (joint_trajectory.points.size() > 0 &&
-        verifyTransition(joint_trajectory.points.back(), point,
-                         joint_model_group_,
-                         current_state) != ap_planning::SUCCESS) {
-      return ap_planning::INVALID_TRANSITION;
+    if (joint_trajectory.points.size() < 1) {
+      if (!checkPointsAreClose(starting_point, point)) {
+        ROS_ERROR_STREAM("Points are not close!\n"
+                         << starting_point << "\n\n"
+                         << point);
+        return ap_planning::INVALID_TRANSITION;
+      }
+    } else {
+      auto transition_result =
+          verifyTransition(joint_trajectory.points.back(), point,
+                           joint_model_group_, current_state);
+      if (transition_result != ap_planning::SUCCESS) {
+        return transition_result;
+      }
     }
     joint_trajectory.points.push_back(point);
   }
