@@ -34,7 +34,13 @@ public:
     ob::RealVectorStateSpace::StateType &screw_state = *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
     ob::RealVectorStateSpace::StateType &robot_state = *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
 
-    screw_state[0] = rng_.uniformReal(0, 0.5*M_PI);
+    // TODO: make these class members so less redoing the same steps over and over
+    ob::CompoundStateSpace* compound_space = si_->getStateSpace()->as<ob::CompoundStateSpace>();
+    ob::RealVectorBounds screw_bounds = compound_space->getSubspace(0)->as<ob::RealVectorStateSpace>()->getBounds();
+
+    for(size_t i=0 ; i < screw_bounds.low.size(); ++i) {
+      screw_state[i] = rng_.uniformReal(screw_bounds.low[i], screw_bounds.high[i]);
+    }
 
     robot_state[0] = cos(screw_state[0]);
     robot_state[1] = sin(screw_state[0]);
@@ -54,27 +60,53 @@ protected:
   ompl::RNG rng_;
 };
 
-bool isNear(double a, double b, double tol) {
+bool isNear(double a, double b, double tol=1e-3) {
   return fabs(a-b) < fabs(tol);
 }
 
-// this function is needed, even when we can write a sampler like the one
-// above, because we need to check path segments for validity
-bool isStateValid(const ob::State *state)
+class myStateValidityCheckerClass : public ob::StateValidityChecker
 {
-  const ob::CompoundStateSpace::StateType &compound_state = *state->as<ob::CompoundStateSpace::StateType>();
-  // const ob::RealVectorStateSpace::StateType &screw_state = *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
-  const ob::RealVectorStateSpace::StateType &robot_state = *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
+public:
+  myStateValidityCheckerClass(const ob::SpaceInformationPtr &si) :
+  ob::StateValidityChecker(si) {}
 
-  if (!isNear(robot_state[0], cos(robot_state[2]), 0.001)) {
-    return false;
-  }
+  virtual bool isValid(const ob::State *state) const
+  {
+    const ob::CompoundStateSpace::StateType &compound_state = *state->as<ob::CompoundStateSpace::StateType>();
+    const ob::RealVectorStateSpace::StateType &screw_state = *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+    const ob::RealVectorStateSpace::StateType &robot_state = *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
 
-  if (!isNear(robot_state[1], sin(robot_state[2]), 0.001)) {
-    return false;
+    // TODO: make these class members so less redoing the same steps over and over
+    ob::CompoundStateSpace* compound_space = si_->getStateSpace()->as<ob::CompoundStateSpace>();
+    ob::RealVectorBounds screw_bounds = compound_space->getSubspace(0)->as<ob::RealVectorStateSpace>()->getBounds();
+    ob::RealVectorBounds robot_bounds = compound_space->getSubspace(1)->as<ob::RealVectorStateSpace>()->getBounds();
+
+    for (size_t i=0 ; i<screw_bounds.low.size(); ++i) {
+      if (screw_state[i] > screw_bounds.high[i] || screw_state[i] < screw_bounds.low[i]) {
+        return false;
+      }
+    }
+
+    for (size_t i=0 ; i<robot_bounds.low.size(); ++i) {
+      if (robot_state[i] > robot_bounds.high[i] || robot_state[i] < robot_bounds.low[i]) {
+        return false;
+      }
+    }
+
+    if (!isNear(robot_state[0], cos(robot_state[2]), 0.001)) {
+      return false;
+    }
+
+    if (!isNear(robot_state[1], sin(robot_state[2]), 0.001)) {
+      return false;
+    }
+
+    if (!isNear(robot_state[2], screw_state[0], 0.001)) {
+      return false;
+    }
+    return true;
   }
-  return true;
-}
+};
 
 // return an obstacle-based sampler
 ob::ValidStateSamplerPtr allocOBValidStateSampler(const ob::SpaceInformation *si)
@@ -103,10 +135,11 @@ void plan(int samplerIndex)
 
   // define a simple setup class
   ompl::base::StateSpacePtr space = screw_space + joint_space;
+  // TODO: lock space? space.lock()
   og::SimpleSetup ss(space);
 
   // set state validity checking for this space
-  ss.setStateValidityChecker(isStateValid);
+  ss.setStateValidityChecker(std::make_shared<myStateValidityCheckerClass>(ss.getSpaceInformation()));
 
   // create a start state
   ob::ScopedState<> start(space);
