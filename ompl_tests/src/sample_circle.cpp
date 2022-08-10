@@ -1,4 +1,5 @@
 #include <ompl/base/SpaceInformation.h>
+#include <ompl/base/goals/GoalStates.h>
 #include <ompl/base/samplers/ObstacleBasedValidStateSampler.h>
 #include <ompl/base/spaces/SE3StateSpace.h>
 #include <ompl/geometric/SimpleSetup.h>
@@ -10,6 +11,30 @@
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
+
+// TODO: change this to GoalLazySamples
+class ScrewGoal : public ob::GoalStates {
+ public:
+  ScrewGoal(const ob::SpaceInformationPtr si) : GoalStates(si) {}
+
+  double distanceGoal(const ob::State *state) const override {
+    const ob::CompoundStateSpace::StateType &compound_state =
+        *state->as<ob::CompoundStateSpace::StateType>();
+    const ob::RealVectorStateSpace::StateType &screw_state =
+        *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+
+    // TODO: make these class members so less redoing the same steps over and
+    // over
+    ob::CompoundStateSpace *compound_space =
+        si_->getStateSpace()->as<ob::CompoundStateSpace>();
+    ob::RealVectorBounds screw_bounds = compound_space->getSubspace(0)
+                                            ->as<ob::RealVectorStateSpace>()
+                                            ->getBounds();
+
+    // TODO make this generic for a vector of screws
+    return screw_bounds.high[0] - screw_state[0];
+  }
+};
 
 class ScrewSampler : public ob::ValidStateSampler {
  public:
@@ -153,9 +178,12 @@ void plan(int samplerIndex) {
   goal[1] = 0;
   goal[2] = 1;
   goal[3] = 0.5 * M_PI;
+  auto goal_obj = std::make_shared<ScrewGoal>(ss.getSpaceInformation());
+  goal_obj->addState(goal);
 
   // set the start and goal states
-  ss.setStartAndGoalStates(start, goal);
+  ss.setStartState(start);
+  ss.setGoal(goal_obj);
 
   // set sampler (optional; the default is uniform sampling)
   if (samplerIndex == 1)
