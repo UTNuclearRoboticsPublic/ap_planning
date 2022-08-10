@@ -30,12 +30,16 @@ public:
   // if .25 <= z <= .5, then |x|>.8 and |y|>.8
   bool sample(ob::State *state) override
   {
-    double *val = static_cast<ob::RealVectorStateSpace::StateType *>(state)->values;
-    double z = rng_.uniformReal(0, 0.5*M_PI);
+    ob::CompoundStateSpace::StateType &compound_state = *state->as<ob::CompoundStateSpace::StateType>();
+    ob::RealVectorStateSpace::StateType &screw_state = *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+    ob::RealVectorStateSpace::StateType &robot_state = *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
 
-    val[0] = cos(z);
-    val[1] = sin(z);
-    val[2] = z;
+    screw_state[0] = rng_.uniformReal(0, 0.5*M_PI);
+
+    robot_state[0] = cos(screw_state[0]);
+    robot_state[1] = sin(screw_state[0]);
+    robot_state[2] = screw_state[0];
+
     assert(si_->isValid(state));
     return true;
   }
@@ -58,17 +62,15 @@ bool isNear(double a, double b, double tol) {
 // above, because we need to check path segments for validity
 bool isStateValid(const ob::State *state)
 {
-  const ob::RealVectorStateSpace::StateType &pos = *state->as<ob::RealVectorStateSpace::StateType>();
-  
-  if (pos[2] > 0.5*M_PI || pos[2] < 0) {
+  const ob::CompoundStateSpace::StateType &compound_state = *state->as<ob::CompoundStateSpace::StateType>();
+  // const ob::RealVectorStateSpace::StateType &screw_state = *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+  const ob::RealVectorStateSpace::StateType &robot_state = *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
+
+  if (!isNear(robot_state[0], cos(robot_state[2]), 0.001)) {
     return false;
   }
 
-  if (!isNear(pos[0], cos(pos[2]), 0.001)) {
-    return false;
-  }
-
-  if (!isNear(pos[1], sin(pos[2]), 0.001)) {
+  if (!isNear(robot_state[1], sin(robot_state[2]), 0.001)) {
     return false;
   }
   return true;
@@ -91,15 +93,16 @@ ob::ValidStateSamplerPtr allocMyValidStateSampler(const ob::SpaceInformation *si
 void plan(int samplerIndex)
 {
   // construct the state space we are planning in
-  auto space(std::make_shared<ob::RealVectorStateSpace>(3));
+  auto screw_space(std::make_shared<ob::RealVectorStateSpace>());
+  auto joint_space(std::make_shared<ob::RealVectorStateSpace>());
 
-  // set the bounds
-  ob::RealVectorBounds bounds(3);
-  bounds.setLow(-2);
-  bounds.setHigh(2);
-  space->setBounds(bounds);
+  screw_space->addDimension(0, 0.5*M_PI);
+  joint_space->addDimension(-2, 2);
+  joint_space->addDimension(-2, 2);
+  joint_space->addDimension(-2, 2);
 
   // define a simple setup class
+  ompl::base::StateSpacePtr space = screw_space + joint_space;
   og::SimpleSetup ss(space);
 
   // set state validity checking for this space
@@ -107,15 +110,17 @@ void plan(int samplerIndex)
 
   // create a start state
   ob::ScopedState<> start(space);
-  start[0] = 1;
-  start[1] = 0;
+  start[0] = 0;
+  start[1] = 1;
   start[2] = 0;
+  start[3] = 0;
 
   // create a goal state
   ob::ScopedState<> goal(space);
-  goal[0] = 0;
-  goal[1] = 1;
-  goal[2] = 0.5*M_PI;
+  goal[0] = 0.5*M_PI;
+  goal[1] = 0;
+  goal[2] = 1;
+  goal[3] = 0.5*M_PI;
 
   // set the start and goal states
   ss.setStartAndGoalStates(start, goal);
