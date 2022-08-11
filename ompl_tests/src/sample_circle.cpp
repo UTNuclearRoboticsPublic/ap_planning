@@ -12,6 +12,7 @@
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <moveit/robot_state/robot_state.h>
+#include <moveit_visual_tools/moveit_visual_tools.h>
 #include <rclcpp/rclcpp.hpp>
 
 namespace ob = ompl::base;
@@ -49,6 +50,12 @@ class ScrewSampler : public ob::ValidStateSampler {
  public:
   ScrewSampler(const ob::SpaceInformation *si) : ValidStateSampler(si) {
     name_ = "my sampler";
+    kinematic_state =
+        std::make_shared<moveit::core::RobotState>(kinematic_model);
+    kinematic_state->setToDefaultValues();
+
+    joint_model_group = std::make_shared<moveit::core::JointModelGroup>(
+        *kinematic_model->getJointModelGroup("panda_arm"));
   }
   bool sample(ob::State *state) override {
     ob::CompoundStateSpace::StateType &compound_state =
@@ -71,9 +78,32 @@ class ScrewSampler : public ob::ValidStateSampler {
           rng_.uniformReal(screw_bounds.low[i], screw_bounds.high[i]);
     }
 
-    robot_state[0] = cos(screw_state[0]);
-    robot_state[1] = sin(screw_state[0]);
-    robot_state[2] = screw_state[0];
+    geometry_msgs::msg::Pose pose_msg;
+    pose_msg.position.x = cos(screw_state[0]);
+    pose_msg.position.y = sin(screw_state[0]);
+    pose_msg.position.z = 0.3;
+    pose_msg.orientation.x = 1.0;
+    pose_msg.orientation.w = 0;
+
+    // auto t1 = std::chrono::high_resolution_clock::now();
+    bool found_ik =
+        kinematic_state->setFromIK(joint_model_group.get(), pose_msg);
+    // auto t2 = std::chrono::high_resolution_clock::now();
+    // microseconds_ +=
+    //     std::chrono::duration_cast<std::chrono::microseconds>(t2 -
+    //     t1).count();
+    // std::cout << microseconds_ << "\n";
+
+    if (!found_ik) {
+      return false;
+    }
+
+    std::vector<double> joint_values;
+    kinematic_state->copyJointGroupPositions(joint_model_group.get(),
+                                             joint_values);
+    for (size_t i = 0; i < joint_values.size(); ++i) {
+      robot_state[i] = joint_values[i];
+    }
 
     assert(si_->isValid(state));
     return true;
@@ -85,8 +115,12 @@ class ScrewSampler : public ob::ValidStateSampler {
     return false;
   }
 
+  double microseconds_;
+
  protected:
   ompl::RNG rng_;
+  moveit::core::RobotStatePtr kinematic_state;
+  moveit::core::JointModelGroupPtr joint_model_group;
 };
 
 bool isNear(double a, double b, double tol = 1e-3) {
@@ -175,7 +209,7 @@ ob::ValidStateSamplerPtr allocScrewSampler(const ob::SpaceInformation *si) {
   return std::make_shared<ScrewSampler>(si);
 }
 
-void plan(int samplerIndex) {
+ompl::geometric::PathGeometric plan(int samplerIndex) {
   // construct the state space we are planning in
   auto screw_space(std::make_shared<ob::RealVectorStateSpace>());
   auto joint_space(std::make_shared<ob::RealVectorStateSpace>());
@@ -232,12 +266,10 @@ void plan(int samplerIndex) {
   geometry_msgs::msg::Pose goal_pose_msg;
   goal_pose_msg.position.y = 0.5;
   goal_pose_msg.position.z = 0.3;
-  goal_pose_msg.orientation.x = 0.7071068;
-  goal_pose_msg.orientation.y = 0.7071068;
-  goal_pose_msg.orientation.z = 0.0;
+  goal_pose_msg.orientation.x = 1.0;
   goal_pose_msg.orientation.w = 0;
 
-  for (size_t i = 0; i < 2; ++i) {
+  for (size_t i = 0; i < 10; ++i) {
     found_ik = kinematic_state->setFromIK(joint_model_group, goal_pose_msg);
     if (!found_ik) {
       std::cout << "Goal: NO IK FOUND!\n";
@@ -285,6 +317,24 @@ void plan(int samplerIndex) {
     ss.getSolutionPath().print(std::cout);
   } else
     std::cout << "No solution found" << std::endl;
+
+  return ss.getSolutionPath();
+}
+
+trajectory_msgs::msg::JointTrajectoryPoint ompl_to_msg(const ob::State *state) {
+  trajectory_msgs::msg::JointTrajectoryPoint output;
+  output.positions.reserve(7);
+
+  const ob::CompoundStateSpace::StateType &compound_state =
+      *state->as<ob::CompoundStateSpace::StateType>();
+  const ob::RealVectorStateSpace::StateType &robot_state =
+      *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
+
+  for (size_t i = 0; i < 7; ++i) {
+    output.positions.push_back(robot_state[i]);
+  }
+
+  return output;
 }
 
 int main(int argc, char **argv) {
@@ -337,29 +387,60 @@ int main(int argc, char **argv) {
         kinematic_state->getFrameTransform("panda_link8").translation());
   }
 
-  std::vector<double> goal_joint_state_found;
-  goal_joint_state_found.push_back(1.83049);
-  goal_joint_state_found.push_back(0.0543568);
-  goal_joint_state_found.push_back(-0.259276);
-  goal_joint_state_found.push_back(-2.37838);
-  goal_joint_state_found.push_back(0.0213562);
-  goal_joint_state_found.push_back(2.43081);
-  goal_joint_state_found.push_back(-0.0154);
+  // std::vector<double> goal_joint_state_found{
+  //     2.55424, -0.0783369, -2.4615, -2.35386, 0.0215131, 2.35256, 0.0805782};
 
-  kinematic_state->setJointGroupPositions("panda_arm", goal_joint_state_found);
-  kinematic_state->update(true);
-  auto pose_eig = kinematic_state->getFrameTransform("panda_link8");
-  std::cout << "\n\n\n\n\n\n\nCalculated Goal IK:\n"
-            << pose_eig.translation() << "\n";
+  // kinematic_state->setJointGroupPositions("panda_arm",
+  // goal_joint_state_found); kinematic_state->update(true); auto pose_eig =
+  // kinematic_state->getFrameTransform("panda_link8"); std::cout <<
+  // "\n\n\n\n\n\n\nCalculated Goal IK:\n"
+  //           << pose_eig.translation() << "\n";
 
   rclcpp::sleep_for(std::chrono::seconds(5));
 
-  std::cout << "Using default uniform sampler:" << std::endl;
-  plan(0);
+  moveit_visual_tools::MoveItVisualTools visual_tools(node, "panda_link0");
+  visual_tools.deleteAllMarkers();
+  visual_tools.loadRemoteControl();
+  visual_tools.setRobotStateTopic("/display_robot_state");
+  // visual_tools.publishRobotState(kinematic_state);
+  visual_tools.trigger();
+
+  visual_tools.prompt(
+      "Press 'next' in the RvizVisualToolsGui window to start the demo");
+
+  // std::cout << "Using default uniform sampler:" << std::endl;
+  // plan(0);
   // std::cout << "\nUsing obstacle-based sampler:" << std::endl;
   // plan(1);
-  // std::cout << "\nUsing my sampler:" << std::endl;
-  // plan(2);
+  std::cout << "\nUsing my sampler:" << std::endl;
+  auto solution = plan(2);
+
+  moveit_msgs::msg::DisplayTrajectory joint_traj;
+  joint_traj.model_id = "panda";
+  joint_traj.trajectory.push_back(moveit_msgs::msg::RobotTrajectory());
+
+  moveit_msgs::msg::RobotState start_msg;
+  start_msg.joint_state.name = joint_model_group->getVariableNames();
+  auto first_waypoint = ompl_to_msg(solution.getState(0));
+  start_msg.joint_state.position = first_waypoint.positions;
+  joint_traj.trajectory_start = start_msg;
+
+  joint_traj.trajectory.at(0).joint_trajectory.header.frame_id = "panda_link0";
+  joint_traj.trajectory.at(0).joint_trajectory.joint_names =
+      joint_model_group->getVariableNames();
+
+  int time = 0;
+
+  size_t num_waypoints = solution.getStateCount();
+  for (size_t i = 0; i < num_waypoints; ++i) {
+    auto wp = ompl_to_msg(solution.getState(i));
+    wp.time_from_start.sec = time;
+    joint_traj.trajectory.at(0).joint_trajectory.points.push_back(wp);
+
+    ++time;
+  }
+
+  visual_tools.publishTrajectoryPath(joint_traj);
 
   rclcpp::shutdown();
   return 0;
