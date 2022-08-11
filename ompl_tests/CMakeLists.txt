@@ -12,26 +12,31 @@ find_package(Boost REQUIRED system filesystem date_time thread serialization pro
 find_package(affordance_primitives REQUIRED)
 find_package(ompl REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(moveit_ros_planning_interface REQUIRED)
 
 include_directories(include)
 include_directories(SYSTEM ${OMPL_INCLUDE_DIRS})
 
-add_executable(sphere_constraint src/constrained_sphere.cpp)
-ament_target_dependencies(sphere_constraint OMPL Boost)
+# add_executable(sphere_constraint src/constrained_sphere.cpp)
+# ament_target_dependencies(sphere_constraint OMPL Boost)
 
-add_executable(circle_constraint src/constrained_circle.cpp)
-ament_target_dependencies(circle_constraint OMPL Boost)
+# add_executable(circle_constraint src/constrained_circle.cpp)
+# ament_target_dependencies(circle_constraint OMPL Boost)
 
-add_executable(screw_constraint src/constrained_screw.cpp)
-ament_target_dependencies(screw_constraint affordance_primitives OMPL Boost)
+# add_executable(screw_constraint src/constrained_screw.cpp)
+# ament_target_dependencies(screw_constraint affordance_primitives OMPL Boost)
 
 add_executable(sample_circle src/sample_circle.cpp)
-ament_target_dependencies(sample_circle affordance_primitives OMPL Boost)
+ament_target_dependencies(sample_circle affordance_primitives moveit_ros_planning_interface rclcpp OMPL Boost)
 
-install(TARGETS sample_circle screw_constraint sphere_constraint circle_constraint
+install(TARGETS sample_circle
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY include/ DESTINATION include)
+
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
