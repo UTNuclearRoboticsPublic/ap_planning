@@ -30,7 +30,10 @@ include_directories(SYSTEM ${OMPL_INCLUDE_DIRS})
 add_executable(sample_circle src/sample_circle.cpp)
 ament_target_dependencies(sample_circle affordance_primitives moveit_ros_planning_interface moveit_visual_tools rclcpp OMPL Boost)
 
-install(TARGETS sample_circle
+add_executable(state_sampling_demo src/state_sampling_demo.cpp)
+ament_target_dependencies(state_sampling_demo affordance_primitives moveit_ros_planning_interface moveit_visual_tools rclcpp OMPL Boost)
+
+install(TARGETS sample_circle state_sampling_demo
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY include/ DESTINATION include)

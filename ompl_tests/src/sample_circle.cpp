@@ -5,6 +5,9 @@
 #include <ompl/config.h>
 #include <ompl/geometric/SimpleSetup.h>
 #include <ompl/geometric/planners/prm/PRM.h>
+#include <ompl/geometric/planners/prm/PRMstar.h>
+#include <ompl/geometric/planners/rrt/RRTConnect.h>
+#include <ompl/geometric/planners/rrt/RRT.h>
 
 #include <iostream>
 #include <thread>
@@ -79,8 +82,8 @@ class ScrewSampler : public ob::ValidStateSampler {
     }
 
     geometry_msgs::msg::Pose pose_msg;
-    pose_msg.position.x = cos(screw_state[0]);
-    pose_msg.position.y = sin(screw_state[0]);
+    pose_msg.position.x = 0.5 * cos(screw_state[0]);
+    pose_msg.position.y = 0.5 * sin(screw_state[0]);
     pose_msg.position.z = 0.3;
     pose_msg.orientation.x = 1.0;
     pose_msg.orientation.w = 0;
@@ -111,6 +114,9 @@ class ScrewSampler : public ob::ValidStateSampler {
   // We don't need this in the example below.
   bool sampleNear(ob::State * /*state*/, const ob::State * /*near*/,
                   const double /*distance*/) override {
+    std::this_thread::sleep_for(ompl::time::seconds(.0005));
+    std::cout << "TRIED TO SAMPLE NEAR\n";
+    std::this_thread::sleep_for(ompl::time::seconds(.0005));
     throw ompl::Exception("ScrewSampler::sampleNear", "not implemented");
     return false;
   }
@@ -121,6 +127,113 @@ class ScrewSampler : public ob::ValidStateSampler {
   ompl::RNG rng_;
   moveit::core::RobotStatePtr kinematic_state;
   moveit::core::JointModelGroupPtr joint_model_group;
+};
+
+class MyStateSampler : public ob::StateSampler {
+ public:
+  MyStateSampler(const ob::StateSpace *state_space) : StateSampler(state_space), screw_bounds(state_space->getDimension()) {
+    kinematic_state =
+        std::make_shared<moveit::core::RobotState>(kinematic_model);
+    kinematic_state->setToDefaultValues();
+
+    joint_model_group = std::make_shared<moveit::core::JointModelGroup>(
+        *kinematic_model->getJointModelGroup("panda_arm"));
+
+    auto compound_space = state_space->as<ob::CompoundStateSpace>();
+    screw_bounds = compound_space->getSubspace(0)
+                                            ->as<ob::RealVectorStateSpace>()
+                                            ->getBounds();
+  }
+
+  void sample(ob::State *state, const std::vector<double> screw_theta) {
+    ob::CompoundStateSpace::StateType &compound_state =
+        *state->as<ob::CompoundStateSpace::StateType>();
+    ob::RealVectorStateSpace::StateType &screw_state =
+        *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+    ob::RealVectorStateSpace::StateType &robot_state =
+        *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
+
+    // ob::RealVectorBounds screw_bounds = screw_state.getBounds();
+
+    for (size_t i = 0; i < screw_theta.size(); ++i) {
+      screw_state[i] = screw_theta[i];
+    }
+
+    geometry_msgs::msg::Pose pose_msg;
+    pose_msg.position.x = 0.5 * cos(screw_state[0]);
+    pose_msg.position.y = 0.5 * sin(screw_state[0]);
+    pose_msg.position.z = 0.3;
+    pose_msg.orientation.x = 1.0;
+    pose_msg.orientation.w = 0;
+
+    // auto t1 = std::chrono::high_resolution_clock::now();
+    bool found_ik =
+        kinematic_state->setFromIK(joint_model_group.get(), pose_msg);
+    // auto t2 = std::chrono::high_resolution_clock::now();
+    // microseconds_ +=
+    //     std::chrono::duration_cast<std::chrono::microseconds>(t2 -
+    //     t1).count();
+    // std::cout << microseconds_ << "\n";
+
+
+    if (!found_ik) {
+      std::cout << "no IK found\n";
+      return;
+    }
+
+    std::cout << screw_state[0] << "\n";
+
+    std::vector<double> joint_values;
+    kinematic_state->copyJointGroupPositions(joint_model_group.get(),
+                                             joint_values);
+    for (size_t i = 0; i < joint_values.size(); ++i) {
+      robot_state[i] = joint_values[i];
+    }
+  }
+
+  void sampleUniform(ob::State *state) override {
+    std::vector<double> screw_theta;
+    screw_theta.reserve(screw_bounds.low.size());
+
+    for (size_t i=0; i<screw_bounds.low.size(); ++i) {
+      screw_theta.push_back(rng_.uniformReal(screw_bounds.low[i], screw_bounds.high[i]));
+    }
+
+    std::cout << "Uniform sample: ";
+
+    sample(state, screw_theta);
+  }
+  void sampleUniformNear(ob::State *state, const ob::State *near, double distance) override {
+    const ob::CompoundStateSpace::StateType &compound_state =
+        *near->as<ob::CompoundStateSpace::StateType>();
+    const ob::RealVectorStateSpace::StateType &screw_state =
+        *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+
+    double screw_dist = std::max(std::min(screw_state[0]+distance, screw_bounds.high[0]), screw_bounds.low[0]);
+
+    std::cout << "UniformNear sample: ";
+    std::vector<double> screw_theta{screw_dist};
+    sample(state, screw_theta);
+  }
+  void sampleGaussian (ob::State *state, const ob::State *mean, double stdDev) override {
+    const ob::CompoundStateSpace::StateType &compound_state =
+        *mean->as<ob::CompoundStateSpace::StateType>();
+    const ob::RealVectorStateSpace::StateType &screw_state =
+        *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+
+    double screw_dist = rng_.gaussian(screw_state[0], stdDev);
+    screw_dist = std::max(std::min(screw_dist, screw_bounds.high[0]), screw_bounds.low[0]);
+
+    std::cout << "Gaussian sample: ";
+    std::vector<double> screw_theta{screw_dist};
+    sample(state, screw_theta);
+  }
+
+ protected:
+  ompl::RNG rng_;
+  moveit::core::RobotStatePtr kinematic_state;
+  moveit::core::JointModelGroupPtr joint_model_group;
+  ob::RealVectorBounds screw_bounds;
 };
 
 bool isNear(double a, double b, double tol = 1e-3) {
@@ -209,6 +322,11 @@ ob::ValidStateSamplerPtr allocScrewSampler(const ob::SpaceInformation *si) {
   return std::make_shared<ScrewSampler>(si);
 }
 
+ob::StateSamplerPtr allocMyStateSampler(
+    const ob::StateSpace *state_space) {
+  return std::make_shared<MyStateSampler>(state_space);
+}
+
 ompl::geometric::PathGeometric plan(int samplerIndex) {
   // construct the state space we are planning in
   auto screw_space(std::make_shared<ob::RealVectorStateSpace>());
@@ -234,6 +352,7 @@ ompl::geometric::PathGeometric plan(int samplerIndex) {
 
   // define a simple setup class
   ompl::base::StateSpacePtr space = screw_space + joint_space;
+  space->setStateSamplerAllocator(allocMyStateSampler);
   // TODO: lock space? space.lock()
   og::SimpleSetup ss(space);
 
@@ -296,6 +415,11 @@ ompl::geometric::PathGeometric plan(int samplerIndex) {
   ss.setStartState(start);
   ss.setGoal(goal_obj);
 
+  // create a planner for the defined space
+  auto planner(std::make_shared<og::RRT>(ss.getSpaceInformation()));
+  planner->setRange(0.5);
+  ss.setPlanner(planner);
+
   // set sampler (optional; the default is uniform sampling)
   if (samplerIndex == 1)
     // use obstacle-based sampling
@@ -305,9 +429,6 @@ ompl::geometric::PathGeometric plan(int samplerIndex) {
     // use my sampler
     ss.getSpaceInformation()->setValidStateSamplerAllocator(allocScrewSampler);
 
-  // create a planner for the defined space
-  auto planner(std::make_shared<og::PRM>(ss.getSpaceInformation()));
-  ss.setPlanner(planner);
 
   // attempt to solve the problem within ten seconds of planning time
   ob::PlannerStatus solved = ss.solve(10.0);
@@ -364,29 +485,6 @@ int main(int argc, char **argv) {
   const std::vector<std::string> &joint_names =
       joint_model_group->getVariableNames();
 
-  geometry_msgs::msg::Pose pose_msg;
-  pose_msg.position.x = 0.5;
-  pose_msg.position.z = 0.3;
-  pose_msg.orientation.x = 1.0;
-  pose_msg.orientation.w = 0;
-
-  bool found_ik = kinematic_state->setFromIK(joint_model_group, pose_msg);
-
-  RCLCPP_INFO(LOGGER, "\n\n\n\n\n\n");
-
-  if (found_ik) {
-    std::vector<double> joint_values;
-    kinematic_state->copyJointGroupPositions(joint_model_group, joint_values);
-    for (std::size_t i = 0; i < joint_names.size(); ++i) {
-      RCLCPP_INFO(LOGGER, "Joint %s: %f", joint_names[i].c_str(),
-                  joint_values[i]);
-    }
-
-    RCLCPP_INFO_STREAM(
-        LOGGER,
-        kinematic_state->getFrameTransform("panda_link8").translation());
-  }
-
   // std::vector<double> goal_joint_state_found{
   //     2.55424, -0.0783369, -2.4615, -2.35386, 0.0215131, 2.35256, 0.0805782};
 
@@ -396,7 +494,7 @@ int main(int argc, char **argv) {
   // "\n\n\n\n\n\n\nCalculated Goal IK:\n"
   //           << pose_eig.translation() << "\n";
 
-  rclcpp::sleep_for(std::chrono::seconds(5));
+  rclcpp::sleep_for(std::chrono::seconds(2));
 
   moveit_visual_tools::MoveItVisualTools visual_tools(node, "panda_link0");
   visual_tools.deleteAllMarkers();
