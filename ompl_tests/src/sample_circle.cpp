@@ -181,7 +181,7 @@ class MyStateSampler : public ob::StateSampler {
       return;
     }
 
-    std::cout << screw_state[0] << "\n";
+    // std::cout << screw_state[0] << "\n";
 
     std::vector<double> joint_values;
     kinematic_state->copyJointGroupPositions(joint_model_group.get(),
@@ -199,7 +199,7 @@ class MyStateSampler : public ob::StateSampler {
       screw_theta.push_back(rng_.uniformReal(screw_bounds.low[i], screw_bounds.high[i]));
     }
 
-    std::cout << "Uniform sample: ";
+    // std::cout << "Uniform sample: ";
 
     sample(state, screw_theta);
   }
@@ -417,7 +417,7 @@ ompl::geometric::PathGeometric plan(int samplerIndex) {
 
   // create a planner for the defined space
   auto planner(std::make_shared<og::RRT>(ss.getSpaceInformation()));
-  planner->setRange(0.5);
+  planner->setRange(0.25);
   ss.setPlanner(planner);
 
   // set sampler (optional; the default is uniform sampling)
@@ -433,6 +433,7 @@ ompl::geometric::PathGeometric plan(int samplerIndex) {
   // attempt to solve the problem within ten seconds of planning time
   ob::PlannerStatus solved = ss.solve(10.0);
   if (solved) {
+    ss.simplifySolution(5.);
     std::cout << "Found solution:" << std::endl;
     // print the path to screen
     ss.getSolutionPath().print(std::cout);
@@ -503,42 +504,45 @@ int main(int argc, char **argv) {
   // visual_tools.publishRobotState(kinematic_state);
   visual_tools.trigger();
 
-  visual_tools.prompt(
-      "Press 'next' in the RvizVisualToolsGui window to start the demo");
+  for (size_t i=0; i<5 ; ++i) {
+    visual_tools.prompt(
+        "Press 'next' in the RvizVisualToolsGui window to start the demo");
 
-  // std::cout << "Using default uniform sampler:" << std::endl;
-  // plan(0);
-  // std::cout << "\nUsing obstacle-based sampler:" << std::endl;
-  // plan(1);
-  std::cout << "\nUsing my sampler:" << std::endl;
-  auto solution = plan(2);
+    // std::cout << "Using default uniform sampler:" << std::endl;
+    // plan(0);
+    // std::cout << "\nUsing obstacle-based sampler:" << std::endl;
+    // plan(1);
+    std::cout << "\nUsing my sampler:" << std::endl;
+    auto solution = plan(2);
+    solution.interpolate();
 
-  moveit_msgs::msg::DisplayTrajectory joint_traj;
-  joint_traj.model_id = "panda";
-  joint_traj.trajectory.push_back(moveit_msgs::msg::RobotTrajectory());
+    moveit_msgs::msg::DisplayTrajectory joint_traj;
+    joint_traj.model_id = "panda";
+    joint_traj.trajectory.push_back(moveit_msgs::msg::RobotTrajectory());
 
-  moveit_msgs::msg::RobotState start_msg;
-  start_msg.joint_state.name = joint_model_group->getVariableNames();
-  auto first_waypoint = ompl_to_msg(solution.getState(0));
-  start_msg.joint_state.position = first_waypoint.positions;
-  joint_traj.trajectory_start = start_msg;
+    moveit_msgs::msg::RobotState start_msg;
+    start_msg.joint_state.name = joint_model_group->getVariableNames();
+    auto first_waypoint = ompl_to_msg(solution.getState(0));
+    start_msg.joint_state.position = first_waypoint.positions;
+    joint_traj.trajectory_start = start_msg;
 
-  joint_traj.trajectory.at(0).joint_trajectory.header.frame_id = "panda_link0";
-  joint_traj.trajectory.at(0).joint_trajectory.joint_names =
-      joint_model_group->getVariableNames();
+    joint_traj.trajectory.at(0).joint_trajectory.header.frame_id = "panda_link0";
+    joint_traj.trajectory.at(0).joint_trajectory.joint_names =
+        joint_model_group->getVariableNames();
 
-  int time = 0;
+    int time = 0;
 
-  size_t num_waypoints = solution.getStateCount();
-  for (size_t i = 0; i < num_waypoints; ++i) {
-    auto wp = ompl_to_msg(solution.getState(i));
-    wp.time_from_start.sec = time;
-    joint_traj.trajectory.at(0).joint_trajectory.points.push_back(wp);
+    size_t num_waypoints = solution.getStateCount();
+    for (size_t i = 0; i < num_waypoints; ++i) {
+      auto wp = ompl_to_msg(solution.getState(i));
+      wp.time_from_start.sec = time;
+      joint_traj.trajectory.at(0).joint_trajectory.points.push_back(wp);
 
-    ++time;
+      ++time;
+    }
+
+    visual_tools.publishTrajectoryPath(joint_traj);
   }
-
-  visual_tools.publishTrajectoryPath(joint_traj);
 
   rclcpp::shutdown();
   return 0;
