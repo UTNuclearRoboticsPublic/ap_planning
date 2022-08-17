@@ -81,6 +81,51 @@ class ScrewParam : public ob::GenericParam {
   affordance_primitive_msgs::msg::ScrewStamped screw_msg;
 };
 
+std::string poseMsgToStr(const geometry_msgs::msg::Pose &pose_msg) {
+  std::stringstream ss;
+  ss << "Position X: " << pose_msg.position.x
+     << "\nPosition Y: " << pose_msg.position.y
+     << "\nPosition Z: " << pose_msg.position.z
+     << "\nQuaternion X: " << pose_msg.orientation.x
+     << "\nQuaternion Y: " << pose_msg.orientation.y
+     << "\nQuaternion Z: " << pose_msg.orientation.z
+     << "\nQuaternion W: " << pose_msg.orientation.w;
+
+  return ss.str();
+}
+
+class PoseParam : public ob::GenericParam {
+ public:
+  PoseParam(std::string name) : GenericParam(name) {}
+
+  std::string getValue() const override { return poseMsgToStr(pose_msg); }
+
+  bool setValue(const std::string &value) {
+    std::stringstream ss(value);
+    std::vector<std::string> lines;
+    std::string delimiter = ": ";
+
+    for (std::string line; std::getline(ss, line, '\n');) {
+      line.erase(0, line.find(delimiter) + delimiter.length());
+      lines.push_back(line);
+    }
+
+    pose_msg.position.x = std::stod(lines.at(0));
+    pose_msg.position.y = std::stod(lines.at(1));
+    pose_msg.position.z = std::stod(lines.at(2));
+    pose_msg.orientation.x = std::stod(lines.at(3));
+    pose_msg.orientation.y = std::stod(lines.at(4));
+    pose_msg.orientation.z = std::stod(lines.at(5));
+    pose_msg.orientation.w = std::stod(lines.at(6));
+
+    return true;
+  }
+
+  geometry_msgs::msg::Pose getPose() const { return pose_msg; };
+
+ protected:
+  geometry_msgs::msg::Pose pose_msg;
+};
 // TODO: change this to GoalLazySamples
 class ScrewGoal : public ob::GoalStates {
  public:
@@ -202,7 +247,7 @@ class MyStateSampler : public ob::StateSampler {
                        ->getBounds();
 
     std::string test;
-    state_space->params().getParam("screw_param", test);
+    state_space->params().getParam("pose_param", test);
     std::cout << "\n\n\n\n" << test << "\n";
   }
 
@@ -427,11 +472,16 @@ ompl::geometric::PathGeometric plan(const APPlanningRequest &req) {
   // define a simple setup class
   ompl::base::StateSpacePtr space = screw_space + joint_space;
 
-  // Param test
+  // Add screw param (from starting pose screw)
   auto screw_param = std::make_shared<ScrewParam>("screw_param");
   screw_param->setValue(
       affordance_primitives::screwMsgToStr(transformed_screw));
   space->params().add(screw_param);
+
+  // Add starting pose
+  auto pose_param = std::make_shared<PoseParam>("pose_param");
+  pose_param->setValue(poseMsgToStr(req.start_pose));
+  space->params().add(pose_param);
 
   space->setStateSamplerAllocator(allocMyStateSampler);
   // TODO: lock space? space.lock()
