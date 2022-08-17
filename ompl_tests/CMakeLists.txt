@@ -14,6 +14,7 @@ find_package(ompl REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 find_package(moveit_visual_tools REQUIRED)
+find_package(tf2_eigen REQUIRED)
 
 include_directories(include)
 include_directories(SYSTEM ${OMPL_INCLUDE_DIRS})
