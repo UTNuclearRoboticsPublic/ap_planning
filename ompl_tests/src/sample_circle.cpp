@@ -38,6 +38,49 @@ struct APPlanningRequest {
   geometry_msgs::msg::Pose start_pose;
 };
 
+class ScrewParam : public ob::GenericParam {
+ public:
+  ScrewParam(std::string name) : GenericParam(name) {}
+
+  std::string getValue() const override {
+    return affordance_primitives::screwMsgToStr(screw_msg);
+  }
+
+  // TODO: probably move this function to affordance primitives
+  bool setValue(const std::string &value) {
+    std::stringstream ss(value);
+    std::vector<std::string> lines;
+    std::string delimiter = ": ";
+
+    for (std::string line; std::getline(ss, line, '\n');) {
+      line.erase(0, line.find(delimiter) + delimiter.length());
+      lines.push_back(line);
+    }
+
+    screw_msg.header.frame_id = lines.at(1);
+    screw_msg.origin.x = std::stod(lines.at(2));
+    screw_msg.origin.y = std::stod(lines.at(3));
+    screw_msg.origin.z = std::stod(lines.at(4));
+    screw_msg.axis.x = std::stod(lines.at(5));
+    screw_msg.axis.y = std::stod(lines.at(6));
+    screw_msg.axis.z = std::stod(lines.at(7));
+
+    screw_msg.is_pure_translation = lines.at(8) == "Infinity";
+    if (!screw_msg.is_pure_translation) {
+      screw_msg.pitch = std::stod(lines.at(8));
+    }
+
+    return true;
+  }
+
+  affordance_primitive_msgs::msg::ScrewStamped getScrew() const {
+    return screw_msg;
+  };
+
+ protected:
+  affordance_primitive_msgs::msg::ScrewStamped screw_msg;
+};
+
 // TODO: change this to GoalLazySamples
 class ScrewGoal : public ob::GoalStates {
  public:
@@ -157,6 +200,10 @@ class MyStateSampler : public ob::StateSampler {
     screw_bounds = compound_space->getSubspace(0)
                        ->as<ob::RealVectorStateSpace>()
                        ->getBounds();
+
+    std::string test;
+    state_space->params().getParam("screw_param", test);
+    std::cout << "\n\n\n\n" << test << "\n";
   }
 
   void sample(ob::State *state, const std::vector<double> screw_theta) {
@@ -366,8 +413,26 @@ ompl::geometric::PathGeometric plan(const APPlanningRequest &req) {
     }
   }
 
+  // We need to transform the screw to be in the starting frame
+  geometry_msgs::msg::TransformStamped tf_msg;
+  tf_msg.header.frame_id = "panda_link0";
+  tf_msg.child_frame_id = "panda_link8";
+  tf_msg.transform.rotation = req.start_pose.orientation;
+  tf_msg.transform.translation.x = req.start_pose.position.x;
+  tf_msg.transform.translation.y = req.start_pose.position.y;
+  tf_msg.transform.translation.z = req.start_pose.position.z;
+  auto transformed_screw =
+      affordance_primitives::transformScrew(req.screw_msg, tf_msg);
+
   // define a simple setup class
   ompl::base::StateSpacePtr space = screw_space + joint_space;
+
+  // Param test
+  auto screw_param = std::make_shared<ScrewParam>("screw_param");
+  screw_param->setValue(
+      affordance_primitives::screwMsgToStr(transformed_screw));
+  space->params().add(screw_param);
+
   space->setStateSamplerAllocator(allocMyStateSampler);
   // TODO: lock space? space.lock()
   og::SimpleSetup ss(space);
@@ -389,19 +454,6 @@ ompl::geometric::PathGeometric plan(const APPlanningRequest &req) {
   for (size_t i = 0; i < joint_values.size(); ++i) {
     start[i + 1] = joint_values[i];
   }
-
-  // We need to transform the screw to be in the starting frame
-  geometry_msgs::msg::TransformStamped tf_msg;
-  tf_msg.header.frame_id = "panda_link0";
-  tf_msg.child_frame_id = "panda_link8";
-  tf_msg.transform.rotation = req.start_pose.orientation;
-  tf_msg.transform.translation.x = req.start_pose.position.x;
-  tf_msg.transform.translation.y = req.start_pose.position.y;
-  tf_msg.transform.translation.z = req.start_pose.position.z;
-  auto transformed_screw =
-      affordance_primitives::transformScrew(req.screw_msg, tf_msg);
-
-  std::cout << affordance_primitives::screwMsgToStr(transformed_screw) << "\n";
 
   // Find goal pose (in planning frame)
   affordance_primitives::ScrewAxis screw_axis;
