@@ -172,6 +172,8 @@ class ScrewSampler : public ob::ValidStateSampler {
  public:
   ScrewSampler(const ob::SpaceInformation *si) : ValidStateSampler(si) {
     name_ = "my sampler";
+
+    // TODO these need to be passed as parameters
     kinematic_state =
         std::make_shared<moveit::core::RobotState>(kinematic_model);
     kinematic_state->setToDefaultValues();
@@ -223,15 +225,15 @@ class ScrewSampler : public ob::ValidStateSampler {
     //     t1).count();
     // std::cout << microseconds_ << "\n";
 
-    Eigen::VectorXd error(6);
-    error.setZero();
-    affordance_primitives::constraintFn(
-        kinematic_state->getFrameTransform("panda_link8"), start_pose,
-        screw_axis, screw_bounds.high[0], error);
+    // Eigen::VectorXd error(6);
+    // error.setZero();
+    // affordance_primitives::constraintFn(
+    //     kinematic_state->getFrameTransform("panda_link8"), start_pose,
+    //     screw_axis, screw_bounds.high[0], error);
 
-    if (error.norm() > 1e-3) {
-      std::cout << "Sample error is: " << error.norm() << "\n";
-    }
+    // if (error.norm() > 1e-3) {
+    //   std::cout << "Sample error is: " << error.norm() << "\n";
+    // }
 
     if (!found_ik) {
       std::cout << "no IK found\n";
@@ -240,18 +242,18 @@ class ScrewSampler : public ob::ValidStateSampler {
 
     // std::cout << screw_state[0] << "\n";
 
-    std::cout << "Sample state. Error: " << error.norm() << ". Vals: ";
+    // std::cout << "Sample state. Error: " << error.norm() << ". Vals: ";
 
     std::vector<double> joint_values;
     kinematic_state->copyJointGroupPositions(joint_model_group.get(),
                                              joint_values);
     for (size_t i = 0; i < joint_values.size(); ++i) {
       robot_state[i] = joint_values[i];
-      std::cout << robot_state[i] << ", ";
+      // std::cout << robot_state[i] << ", ";
     }
-    std::cout << "\n";
+    // std::cout << "\n";
 
-    assert(si_->isValid(state));
+    // assert(si_->isValid(state));
     return true;
   }
   // We don't need this in the example below.
@@ -328,15 +330,15 @@ class MyStateSampler : public ob::StateSampler {
     //     t1).count();
     // std::cout << microseconds_ << "\n";
 
-    Eigen::VectorXd error(6);
-    error.setZero();
-    affordance_primitives::constraintFn(
-        kinematic_state->getFrameTransform("panda_link8"), start_pose,
-        screw_axis, screw_bounds.high[0], error);
+    // Eigen::VectorXd error(6);
+    // error.setZero();
+    // affordance_primitives::constraintFn(
+    //     kinematic_state->getFrameTransform("panda_link8"), start_pose,
+    //     screw_axis, screw_bounds.high[0], error);
 
-    if (error.norm() > 1e-3) {
-      std::cout << "Sample error is: " << error.norm() << "\n";
-    }
+    // if (error.norm() > 1e-3) {
+    //   std::cout << "Sample error is: " << error.norm() << "\n";
+    // }
 
     if (!found_ik) {
       std::cout << "no IK found\n";
@@ -345,16 +347,16 @@ class MyStateSampler : public ob::StateSampler {
 
     // std::cout << screw_state[0] << "\n";
 
-    std::cout << "Sample state. Error: " << error.norm() << ". Vals: ";
+    // std::cout << "Sample state. Error: " << error.norm() << ". Vals: ";
 
     std::vector<double> joint_values;
     kinematic_state->copyJointGroupPositions(joint_model_group.get(),
                                              joint_values);
     for (size_t i = 0; i < joint_values.size(); ++i) {
       robot_state[i] = joint_values[i];
-      std::cout << robot_state[i] << ", ";
+      // std::cout << robot_state[i] << ", ";
     }
-    std::cout << "\n";
+    // std::cout << "\n";
   }
 
   void sampleUniform(ob::State *state) override {
@@ -412,6 +414,7 @@ bool isNear(double a, double b, double tol = 1e-3) {
   return fabs(a - b) < fabs(tol);
 }
 
+// TODO: this must be thread safe, is it?
 class ScrewValidityChecker : public ob::StateValidityChecker {
  public:
   ScrewValidityChecker(const ob::SpaceInformationPtr &si)
@@ -483,12 +486,12 @@ class ScrewValidityChecker : public ob::StateValidityChecker {
     error.setZero();
     if (!affordance_primitives::constraintFn(this_state_pose, start_pose,
                                              screw_axis, screw_bounds.high[0],
-                                             error)) {
+                                             screw_state[0], error)) {
       return false;
     }
 
-    if (error.norm() > 0.01) {
-      std::cout << "Invalid state: " << error.norm() << "\n";
+    if (error.norm() > 1e-4) {
+      // std::cout << "Invalid state: " << error.norm() << "\n";
       return false;
     }
     return true;
@@ -572,18 +575,22 @@ ompl::geometric::PathGeometric plan(const APPlanningRequest &req) {
   ss.setStateValidityChecker(
       std::make_shared<ScrewValidityChecker>(ss.getSpaceInformation()));
 
-  // create a start state
-  bool found_ik = kinematic_state->setFromIK(joint_model_group, req.start_pose);
-  if (!found_ik) {
-    std::cout << "No initial IK found\n";
-  }
-
-  ob::ScopedState<> start(space);
-  start[0] = 0;
+  // create a number start states
+  bool found_ik;
   std::vector<double> joint_values;
-  kinematic_state->copyJointGroupPositions(joint_model_group, joint_values);
-  for (size_t i = 0; i < joint_values.size(); ++i) {
-    start[i + 1] = joint_values[i];
+  for (size_t i = 0; i < 20; ++i) {
+    found_ik = kinematic_state->setFromIK(joint_model_group, req.start_pose);
+    if (!found_ik) {
+      std::cout << "No initial IK found\n";
+    }
+
+    ob::ScopedState<> start(space);
+    start[0] = 0;
+    kinematic_state->copyJointGroupPositions(joint_model_group, joint_values);
+    for (size_t i = 0; i < joint_values.size(); ++i) {
+      start[i + 1] = joint_values[i];
+    }
+    ss.addStartState(start);
   }
 
   // Find goal pose (in planning frame)
@@ -594,7 +601,7 @@ ompl::geometric::PathGeometric plan(const APPlanningRequest &req) {
 
   // create a number of goal states
   auto goal_obj = std::make_shared<ScrewGoal>(ss.getSpaceInformation());
-  for (size_t i = 0; i < 10; ++i) {
+  for (size_t i = 0; i < 20; ++i) {
     found_ik =
         kinematic_state->setFromIK(joint_model_group, tf2::toMsg(goal_pose));
     if (!found_ik) {
@@ -615,7 +622,6 @@ ompl::geometric::PathGeometric plan(const APPlanningRequest &req) {
   }
 
   // set the start and goal states
-  ss.setStartState(start);
   ss.setGoal(goal_obj);
 
   // create a planner for the defined space
@@ -626,7 +632,7 @@ ompl::geometric::PathGeometric plan(const APPlanningRequest &req) {
   ss.getSpaceInformation()->setValidStateSamplerAllocator(allocScrewSampler);
 
   // attempt to solve the problem within ten seconds of planning time
-  ob::PlannerStatus solved = ss.solve(10.0);
+  ob::PlannerStatus solved = ss.solve(1.0);
   if (solved) {
     ss.simplifySolution(5.);
     std::cout << "Found solution:" << std::endl;
@@ -756,36 +762,48 @@ int main(int argc, char **argv) {
     show_screw(req.screw_msg, visual_tools);
 
     std::cout << "\nUsing my sampler:" << std::endl;
-    auto solution = plan(req);
-    solution.interpolate();
+    bool found = false;
+    for (size_t i = 0; i < 5; ++i) {
+      auto solution = plan(req);
+      if (solution.getStateCount() < 1) {
+        continue;
+      } else {
+        found = true;
+      }
+      solution.interpolate();
 
-    moveit_msgs::msg::DisplayTrajectory joint_traj;
-    joint_traj.model_id = "panda";
-    joint_traj.trajectory.push_back(moveit_msgs::msg::RobotTrajectory());
+      moveit_msgs::msg::DisplayTrajectory joint_traj;
+      joint_traj.model_id = "panda";
+      joint_traj.trajectory.push_back(moveit_msgs::msg::RobotTrajectory());
 
-    moveit_msgs::msg::RobotState start_msg;
-    start_msg.joint_state.name = joint_model_group->getVariableNames();
-    auto first_waypoint = ompl_to_msg(solution.getState(0));
-    start_msg.joint_state.position = first_waypoint.positions;
-    joint_traj.trajectory_start = start_msg;
+      moveit_msgs::msg::RobotState start_msg;
+      start_msg.joint_state.name = joint_model_group->getVariableNames();
+      auto first_waypoint = ompl_to_msg(solution.getState(0));
+      start_msg.joint_state.position = first_waypoint.positions;
+      joint_traj.trajectory_start = start_msg;
 
-    joint_traj.trajectory.at(0).joint_trajectory.header.frame_id =
-        "panda_link0";
-    joint_traj.trajectory.at(0).joint_trajectory.joint_names =
-        joint_model_group->getVariableNames();
+      joint_traj.trajectory.at(0).joint_trajectory.header.frame_id =
+          "panda_link0";
+      joint_traj.trajectory.at(0).joint_trajectory.joint_names =
+          joint_model_group->getVariableNames();
 
-    int time = 0;
+      int time = 0;
 
-    size_t num_waypoints = solution.getStateCount();
-    for (size_t i = 0; i < num_waypoints; ++i) {
-      auto wp = ompl_to_msg(solution.getState(i));
-      wp.time_from_start.sec = time;
-      joint_traj.trajectory.at(0).joint_trajectory.points.push_back(wp);
+      size_t num_waypoints = solution.getStateCount();
+      for (size_t i = 0; i < num_waypoints; ++i) {
+        auto wp = ompl_to_msg(solution.getState(i));
+        wp.time_from_start.sec = time;
+        joint_traj.trajectory.at(0).joint_trajectory.points.push_back(wp);
 
-      ++time;
+        ++time;
+      }
+
+      visual_tools.publishTrajectoryPath(joint_traj);
+
+      if (found) {
+        break;
+      }
     }
-
-    visual_tools.publishTrajectoryPath(joint_traj);
   }
 
   rclcpp::shutdown();

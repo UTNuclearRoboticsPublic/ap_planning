@@ -42,7 +42,7 @@ def generate_launch_description():
     demo_node = Node(
         package="ompl_tests",
         executable="sample_circle",
-        prefix=['xterm -e gdb --args'],
+        # prefix=['xterm -e gdb --args'],
         output="both",
         parameters=[
             moveit_config.robot_description,
