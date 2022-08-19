@@ -27,8 +27,8 @@ find_package(ompl REQUIRED)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS
-#   include
+ INCLUDE_DIRS
+  include
  LIBRARIES
   ${PROJECT_NAME}
  CATKIN_DEPENDS
@@ -39,9 +39,9 @@ catkin_package(
 )
 
 
-# include_directories(
-#   include
-# )
+include_directories(
+  include
+)
 include_directories(SYSTEM
                     ${catkin_INCLUDE_DIRS}
                     ${Boost_INCLUDE_DIRS}
@@ -65,6 +65,6 @@ target_link_libraries(sample_circle ${OMPL_LIBRARIES} ${catkin_LIBRARIES} ${Boos
 install(TARGETS sample_circle
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-# )
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+)

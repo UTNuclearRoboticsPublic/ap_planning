@@ -25,16 +25,15 @@
 #include <affordance_primitives/screw_model/affordance_utils.hpp>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
 #include <affordance_primitives/screw_planning/screw_planning.hpp>
+#include <sample_based_planning/state_sampling.hpp>
+#include <sample_based_planning/state_utils.hpp>
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
-struct APPlanningRequest {
-  affordance_primitive_msgs::ScrewStamped screw_msg;
-  double theta;
-  geometry_msgs::Pose start_pose;
-};
+namespace ap_planning {
 
+// TODO: probably move this function to affordance primitives
 affordance_primitive_msgs::ScrewStamped strToScrewMsg(const std::string input) {
   affordance_primitive_msgs::ScrewStamped output;
 
@@ -62,29 +61,6 @@ affordance_primitive_msgs::ScrewStamped strToScrewMsg(const std::string input) {
 
   return output;
 }
-
-class ScrewParam : public ob::GenericParam {
- public:
-  ScrewParam(std::string name) : GenericParam(name) {}
-
-  std::string getValue() const override {
-    return affordance_primitives::screwMsgToStr(screw_msg_);
-  }
-
-  // TODO: probably move this function to affordance primitives
-  bool setValue(const std::string &value) {
-    screw_msg_ = strToScrewMsg(value);
-
-    return true;
-  }
-
-  affordance_primitive_msgs::ScrewStamped getScrew() const {
-    return screw_msg_;
-  };
-
- protected:
-  affordance_primitive_msgs::ScrewStamped screw_msg_;
-};
 
 geometry_msgs::Pose strToPoseMsg(const std::string input) {
   geometry_msgs::Pose output;
@@ -122,397 +98,327 @@ std::string poseMsgToStr(const geometry_msgs::Pose &pose_msg) {
   return ss.str();
 }
 
-class PoseParam : public ob::GenericParam {
- public:
-  PoseParam(std::string name) : GenericParam(name) {}
+ScrewGoal::ScrewGoal(const ob::SpaceInformationPtr si)
+    : GoalStates(si), screw_bounds_(1) {
+  ob::CompoundStateSpace *compound_space =
+      si_->getStateSpace()->as<ob::CompoundStateSpace>();
+  screw_bounds_ = compound_space->getSubspace(0)
+                      ->as<ob::RealVectorStateSpace>()
+                      ->getBounds();
+}
 
-  std::string getValue() const override { return poseMsgToStr(pose_msg_); }
+double ScrewGoal::distanceGoal(const ob::State *state) const {
+  const ob::CompoundStateSpace::StateType &compound_state =
+      *state->as<ob::CompoundStateSpace::StateType>();
+  const ob::RealVectorStateSpace::StateType &screw_state =
+      *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
 
-  bool setValue(const std::string &value) {
-    pose_msg_ = strToPoseMsg(value);
+  // TODO make this generic for a vector of screws
+  return screw_bounds_.high[0] - screw_state[0];
+}
 
-    return true;
+ScrewSampler::ScrewSampler(const ob::SpaceInformation *si)
+    : ValidStateSampler(si), screw_bounds_(1) {
+  name_ = "my sampler";
+
+  // TODO: robot description and move group name need to be parameters
+  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
+  kinematic_model_ = robot_model_loader.getModel();
+  kinematic_state_ =
+      std::make_shared<moveit::core::RobotState>(kinematic_model_);
+  kinematic_state_->setToDefaultValues();
+
+  joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
+      *kinematic_model_->getJointModelGroup("panda_arm"));
+
+  std::string screw_msg_string, pose_msg_string;
+  si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
+  si->getStateSpace()->params().getParam("pose_param", pose_msg_string);
+
+  screw_axis_.setScrewAxis(strToScrewMsg(screw_msg_string));
+  tf2::fromMsg(strToPoseMsg(pose_msg_string), start_pose_);
+
+  ob::CompoundStateSpace *compound_space =
+      si_->getStateSpace()->as<ob::CompoundStateSpace>();
+  screw_bounds_ = compound_space->getSubspace(0)
+                      ->as<ob::RealVectorStateSpace>()
+                      ->getBounds();
+}
+
+bool ScrewSampler::sample(ob::State *state) {
+  ob::CompoundStateSpace::StateType &compound_state =
+      *state->as<ob::CompoundStateSpace::StateType>();
+  ob::RealVectorStateSpace::StateType &screw_state =
+      *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+  ob::RealVectorStateSpace::StateType &robot_state =
+      *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
+
+  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
+    screw_state[i] =
+        rng_.uniformReal(screw_bounds_.low[i], screw_bounds_.high[i]);
   }
 
-  geometry_msgs::Pose getPose() const { return pose_msg_; };
+  // Get the pose of this theta
+  // TODO: multiple screw axis?
+  Eigen::Isometry3d current_pose =
+      start_pose_ * screw_axis_.getTF(screw_state[0]);
 
- protected:
-  geometry_msgs::Pose pose_msg_;
-};
-class ScrewGoal : public ob::GoalStates {
- public:
-  ScrewGoal(const ob::SpaceInformationPtr si)
-      : GoalStates(si), screw_bounds_(1) {
-    ob::CompoundStateSpace *compound_space =
-        si_->getStateSpace()->as<ob::CompoundStateSpace>();
-    screw_bounds_ = compound_space->getSubspace(0)
-                        ->as<ob::RealVectorStateSpace>()
-                        ->getBounds();
-  }
+  geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
-  double distanceGoal(const ob::State *state) const override {
-    const ob::CompoundStateSpace::StateType &compound_state =
-        *state->as<ob::CompoundStateSpace::StateType>();
-    const ob::RealVectorStateSpace::StateType &screw_state =
-        *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+  // auto t1 = std::chrono::high_resolution_clock::now();
+  bool found_ik =
+      kinematic_state_->setFromIK(joint_model_group_.get(), pose_msg);
+  // auto t2 = std::chrono::high_resolution_clock::now();
+  // microseconds_ +=
+  //     std::chrono::duration_cast<std::chrono::microseconds>(t2 -
+  //     t1).count();
+  // std::cout << microseconds_ << "\n";
 
-    // TODO make this generic for a vector of screws
-    return screw_bounds_.high[0] - screw_state[0];
-  }
+  // Eigen::VectorXd error(6);
+  // error.setZero();
+  // affordance_primitives::constraintFn(
+  //     kinematic_state->getFrameTransform("panda_link8"), start_pose,
+  //     screw_axis, screw_bounds.high[0], error);
 
- protected:
-  ob::RealVectorBounds screw_bounds_;
-};
+  // if (error.norm() > 1e-3) {
+  //   std::cout << "Sample error is: " << error.norm() << "\n";
+  // }
 
-class ScrewSampler : public ob::ValidStateSampler {
- public:
-  ScrewSampler(const ob::SpaceInformation *si)
-      : ValidStateSampler(si), screw_bounds_(1) {
-    name_ = "my sampler";
-
-    // TODO: robot description and move group name need to be parameters
-    robot_model_loader::RobotModelLoader robot_model_loader(
-        "robot_description");
-    kinematic_model_ = robot_model_loader.getModel();
-    kinematic_state_ =
-        std::make_shared<moveit::core::RobotState>(kinematic_model_);
-    kinematic_state_->setToDefaultValues();
-
-    joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
-        *kinematic_model_->getJointModelGroup("panda_arm"));
-
-    std::string screw_msg_string, pose_msg_string;
-    si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
-    si->getStateSpace()->params().getParam("pose_param", pose_msg_string);
-
-    screw_axis_.setScrewAxis(strToScrewMsg(screw_msg_string));
-    tf2::fromMsg(strToPoseMsg(pose_msg_string), start_pose_);
-
-    ob::CompoundStateSpace *compound_space =
-        si_->getStateSpace()->as<ob::CompoundStateSpace>();
-    screw_bounds_ = compound_space->getSubspace(0)
-                        ->as<ob::RealVectorStateSpace>()
-                        ->getBounds();
-  }
-  bool sample(ob::State *state) override {
-    ob::CompoundStateSpace::StateType &compound_state =
-        *state->as<ob::CompoundStateSpace::StateType>();
-    ob::RealVectorStateSpace::StateType &screw_state =
-        *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
-    ob::RealVectorStateSpace::StateType &robot_state =
-        *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
-
-    for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-      screw_state[i] =
-          rng_.uniformReal(screw_bounds_.low[i], screw_bounds_.high[i]);
-    }
-
-    // Get the pose of this theta
-    // TODO: multiple screw axis?
-    Eigen::Isometry3d current_pose =
-        start_pose_ * screw_axis_.getTF(screw_state[0]);
-
-    geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
-
-    // auto t1 = std::chrono::high_resolution_clock::now();
-    bool found_ik =
-        kinematic_state_->setFromIK(joint_model_group_.get(), pose_msg);
-    // auto t2 = std::chrono::high_resolution_clock::now();
-    // microseconds_ +=
-    //     std::chrono::duration_cast<std::chrono::microseconds>(t2 -
-    //     t1).count();
-    // std::cout << microseconds_ << "\n";
-
-    // Eigen::VectorXd error(6);
-    // error.setZero();
-    // affordance_primitives::constraintFn(
-    //     kinematic_state->getFrameTransform("panda_link8"), start_pose,
-    //     screw_axis, screw_bounds.high[0], error);
-
-    // if (error.norm() > 1e-3) {
-    //   std::cout << "Sample error is: " << error.norm() << "\n";
-    // }
-
-    if (!found_ik) {
-      std::cout << "no IK found\n";
-      return false;
-    }
-
-    // std::cout << screw_state[0] << "\n";
-
-    // std::cout << "Sample state. Error: " << error.norm() << ". Vals: ";
-
-    std::vector<double> joint_values;
-    kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
-                                              joint_values);
-    for (size_t i = 0; i < joint_values.size(); ++i) {
-      robot_state[i] = joint_values[i];
-      // std::cout << robot_state[i] << ", ";
-    }
-    // std::cout << "\n";
-
-    // assert(si_->isValid(state));
-    return true;
-  }
-  // We don't need this in the example below.
-  bool sampleNear(ob::State * /*state*/, const ob::State * /*near*/,
-                  const double /*distance*/) override {
-    std::this_thread::sleep_for(ompl::time::seconds(.0005));
-    std::cout << "TRIED TO SAMPLE NEAR\n";
-    std::this_thread::sleep_for(ompl::time::seconds(.0005));
-    throw ompl::Exception("ScrewSampler::sampleNear", "not implemented");
+  if (!found_ik) {
+    std::cout << "no IK found\n";
     return false;
   }
 
-  double microseconds_;
+  // std::cout << screw_state[0] << "\n";
 
- protected:
-  ompl::RNG rng_;
-  ob::RealVectorBounds screw_bounds_;
-  moveit::core::RobotModelPtr kinematic_model_;
-  moveit::core::RobotStatePtr kinematic_state_;
-  moveit::core::JointModelGroupPtr joint_model_group_;
-  affordance_primitives::ScrewAxis screw_axis_;
-  Eigen::Isometry3d start_pose_;
-};
+  // std::cout << "Sample state. Error: " << error.norm() << ". Vals: ";
 
-class MyStateSampler : public ob::StateSampler {
- public:
-  MyStateSampler(const ob::StateSpace *state_space)
-      : StateSampler(state_space), screw_bounds_(state_space->getDimension()) {
-    // TODO: robot description and move group name need to be parameters
-    robot_model_loader::RobotModelLoader robot_model_loader(
-        "robot_description");
-    kinematic_model_ = robot_model_loader.getModel();
-    kinematic_state_ =
-        std::make_shared<moveit::core::RobotState>(kinematic_model_);
-    kinematic_state_->setToDefaultValues();
-
-    joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
-        *kinematic_model_->getJointModelGroup("panda_arm"));
-
-    auto compound_space = state_space->as<ob::CompoundStateSpace>();
-    screw_bounds_ = compound_space->getSubspace(0)
-                        ->as<ob::RealVectorStateSpace>()
-                        ->getBounds();
-
-    std::string screw_msg_string, pose_msg_string;
-    state_space->params().getParam("screw_param", screw_msg_string);
-    state_space->params().getParam("pose_param", pose_msg_string);
-
-    screw_axis_.setScrewAxis(strToScrewMsg(screw_msg_string));
-    tf2::fromMsg(strToPoseMsg(pose_msg_string), start_pose_);
+  std::vector<double> joint_values;
+  kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
+                                            joint_values);
+  for (size_t i = 0; i < joint_values.size(); ++i) {
+    robot_state[i] = joint_values[i];
+    // std::cout << robot_state[i] << ", ";
   }
+  // std::cout << "\n";
 
-  void sample(ob::State *state, const std::vector<double> screw_theta) {
-    ob::CompoundStateSpace::StateType &compound_state =
-        *state->as<ob::CompoundStateSpace::StateType>();
-    ob::RealVectorStateSpace::StateType &screw_state =
-        *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
-    ob::RealVectorStateSpace::StateType &robot_state =
-        *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
-
-    // ob::RealVectorBounds screw_bounds = screw_state.getBounds();
-
-    for (size_t i = 0; i < screw_theta.size(); ++i) {
-      screw_state[i] = screw_theta[i];
-    }
-
-    // Get the pose of this theta
-    // TODO: multiple screw axis?
-    Eigen::Isometry3d current_pose =
-        start_pose_ * screw_axis_.getTF(screw_state[0]);
-
-    geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
-
-    // auto t1 = std::chrono::high_resolution_clock::now();
-    bool found_ik =
-        kinematic_state_->setFromIK(joint_model_group_.get(), pose_msg);
-    // auto t2 = std::chrono::high_resolution_clock::now();
-    // microseconds_ +=
-    //     std::chrono::duration_cast<std::chrono::microseconds>(t2 -
-    //     t1).count();
-    // std::cout << microseconds_ << "\n";
-
-    // Eigen::VectorXd error(6);
-    // error.setZero();
-    // affordance_primitives::constraintFn(
-    //     kinematic_state->getFrameTransform("panda_link8"), start_pose,
-    //     screw_axis, screw_bounds.high[0], error);
-
-    // if (error.norm() > 1e-3) {
-    //   std::cout << "Sample error is: " << error.norm() << "\n";
-    // }
-
-    if (!found_ik) {
-      std::cout << "no IK found\n";
-      return;
-    }
-
-    // std::cout << screw_state[0] << "\n";
-
-    // std::cout << "Sample state. Error: " << error.norm() << ". Vals: ";
-
-    std::vector<double> joint_values;
-    kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
-                                              joint_values);
-    for (size_t i = 0; i < joint_values.size(); ++i) {
-      robot_state[i] = joint_values[i];
-      // std::cout << robot_state[i] << ", ";
-    }
-    // std::cout << "\n";
-  }
-
-  void sampleUniform(ob::State *state) override {
-    std::vector<double> screw_theta;
-    screw_theta.reserve(screw_bounds_.low.size());
-
-    for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-      screw_theta.push_back(
-          rng_.uniformReal(screw_bounds_.low[i], screw_bounds_.high[i]));
-    }
-
-    // std::cout << "Uniform sample: ";
-
-    sample(state, screw_theta);
-  }
-  void sampleUniformNear(ob::State *state, const ob::State *near,
-                         double distance) override {
-    const ob::CompoundStateSpace::StateType &compound_state =
-        *near->as<ob::CompoundStateSpace::StateType>();
-    const ob::RealVectorStateSpace::StateType &screw_state =
-        *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
-
-    double screw_dist =
-        std::max(std::min(screw_state[0] + distance, screw_bounds_.high[0]),
-                 screw_bounds_.low[0]);
-
-    std::vector<double> screw_theta{screw_dist};
-    sample(state, screw_theta);
-  }
-  void sampleGaussian(ob::State *state, const ob::State *mean,
-                      double stdDev) override {
-    const ob::CompoundStateSpace::StateType &compound_state =
-        *mean->as<ob::CompoundStateSpace::StateType>();
-    const ob::RealVectorStateSpace::StateType &screw_state =
-        *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
-
-    double screw_dist = rng_.gaussian(screw_state[0], stdDev);
-    screw_dist = std::max(std::min(screw_dist, screw_bounds_.high[0]),
-                          screw_bounds_.low[0]);
-
-    std::vector<double> screw_theta{screw_dist};
-    sample(state, screw_theta);
-  }
-
- protected:
-  ompl::RNG rng_;
-  moveit::core::RobotModelPtr kinematic_model_;
-  moveit::core::RobotStatePtr kinematic_state_;
-  moveit::core::JointModelGroupPtr joint_model_group_;
-  ob::RealVectorBounds screw_bounds_;
-  affordance_primitives::ScrewAxis screw_axis_;
-  Eigen::Isometry3d start_pose_;
-};
-
-bool isNear(double a, double b, double tol = 1e-3) {
-  return fabs(a - b) < fabs(tol);
+  // assert(si_->isValid(state));
+  return true;
 }
 
-// TODO: this must be thread safe, is it?
-class ScrewValidityChecker : public ob::StateValidityChecker {
- public:
-  ScrewValidityChecker(const ob::SpaceInformationPtr &si)
-      : ob::StateValidityChecker(si), robot_bounds_(1), screw_bounds_(1) {
-    // TODO: robot description and move group name need to be parameters
-    robot_model_loader::RobotModelLoader robot_model_loader(
-        "robot_description");
-    kinematic_model_ = robot_model_loader.getModel();
-    kinematic_state_ =
-        std::make_shared<moveit::core::RobotState>(kinematic_model_);
-    kinematic_state_->setToDefaultValues();
+MyStateSampler::MyStateSampler(const ob::StateSpace *state_space)
+    : StateSampler(state_space), screw_bounds_(state_space->getDimension()) {
+  // TODO: robot description and move group name need to be parameters
+  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
+  kinematic_model_ = robot_model_loader.getModel();
+  kinematic_state_ =
+      std::make_shared<moveit::core::RobotState>(kinematic_model_);
+  kinematic_state_->setToDefaultValues();
 
-    joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
-        *kinematic_model_->getJointModelGroup("panda_arm"));
+  joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
+      *kinematic_model_->getJointModelGroup("panda_arm"));
 
-    std::string screw_msg_string, pose_msg_string;
-    si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
-    si->getStateSpace()->params().getParam("pose_param", pose_msg_string);
-    screw_axis_.setScrewAxis(strToScrewMsg(screw_msg_string));
-    tf2::fromMsg(strToPoseMsg(pose_msg_string), start_pose_);
+  auto compound_space = state_space->as<ob::CompoundStateSpace>();
+  screw_bounds_ = compound_space->getSubspace(0)
+                      ->as<ob::RealVectorStateSpace>()
+                      ->getBounds();
 
-    ob::CompoundStateSpace *compound_space =
-        si_->getStateSpace()->as<ob::CompoundStateSpace>();
-    screw_bounds_ = compound_space->getSubspace(0)
-                        ->as<ob::RealVectorStateSpace>()
-                        ->getBounds();
-    robot_bounds_ = compound_space->getSubspace(1)
-                        ->as<ob::RealVectorStateSpace>()
-                        ->getBounds();
+  std::string screw_msg_string, pose_msg_string;
+  state_space->params().getParam("screw_param", screw_msg_string);
+  state_space->params().getParam("pose_param", pose_msg_string);
+
+  screw_axis_.setScrewAxis(strToScrewMsg(screw_msg_string));
+  tf2::fromMsg(strToPoseMsg(pose_msg_string), start_pose_);
+}
+
+void MyStateSampler::sample(ob::State *state,
+                            const std::vector<double> screw_theta) {
+  ob::CompoundStateSpace::StateType &compound_state =
+      *state->as<ob::CompoundStateSpace::StateType>();
+  ob::RealVectorStateSpace::StateType &screw_state =
+      *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+  ob::RealVectorStateSpace::StateType &robot_state =
+      *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
+
+  // ob::RealVectorBounds screw_bounds = screw_state.getBounds();
+
+  for (size_t i = 0; i < screw_theta.size(); ++i) {
+    screw_state[i] = screw_theta[i];
   }
 
-  virtual bool isValid(const ob::State *state) const {
-    const ob::CompoundStateSpace::StateType &compound_state =
-        *state->as<ob::CompoundStateSpace::StateType>();
-    const ob::RealVectorStateSpace::StateType &screw_state =
-        *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
-    const ob::RealVectorStateSpace::StateType &robot_state =
-        *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
+  // Get the pose of this theta
+  // TODO: multiple screw axis?
+  Eigen::Isometry3d current_pose =
+      start_pose_ * screw_axis_.getTF(screw_state[0]);
 
-    for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-      if (screw_state[i] > screw_bounds_.high[i] ||
-          screw_state[i] < screw_bounds_.low[i]) {
-        return false;
-      }
-    }
+  geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
-    // std::cout << "Validity state: ";
+  // auto t1 = std::chrono::high_resolution_clock::now();
+  bool found_ik =
+      kinematic_state_->setFromIK(joint_model_group_.get(), pose_msg);
+  // auto t2 = std::chrono::high_resolution_clock::now();
+  // microseconds_ +=
+  //     std::chrono::duration_cast<std::chrono::microseconds>(t2 -
+  //     t1).count();
+  // std::cout << microseconds_ << "\n";
 
-    std::vector<double> joint_state(robot_bounds_.low.size());
-    for (size_t i = 0; i < robot_bounds_.low.size(); ++i) {
-      if (robot_state[i] > robot_bounds_.high[i] ||
-          robot_state[i] < robot_bounds_.low[i]) {
-        return false;
-      }
-      joint_state[i] = robot_state[i];
-      // std::cout << joint_state[i] << ", ";
-    }
-    // std::cout << "\n";
+  // Eigen::VectorXd error(6);
+  // error.setZero();
+  // affordance_primitives::constraintFn(
+  //     kinematic_state->getFrameTransform("panda_link8"), start_pose,
+  //     screw_axis, screw_bounds.high[0], error);
 
-    kinematic_state_->setJointGroupPositions("panda_arm", joint_state);
-    kinematic_state_->update(true);
-    auto this_state_pose = kinematic_state_->getFrameTransform("panda_link8");
+  // if (error.norm() > 1e-3) {
+  //   std::cout << "Sample error is: " << error.norm() << "\n";
+  // }
 
-    // const Eigen::Vector3d lin_distance = this_state_pose.translation() -
-    // screw_axis.getQVector(); if (lin_distance.norm() > 0.01) {
-    //   std::cout << "Broad face: " << lin_distance.norm() << "\n";
-    //   return false;
-    // }
-
-    Eigen::VectorXd error(6);
-    error.setZero();
-    if (!affordance_primitives::constraintFn(this_state_pose, start_pose_,
-                                             screw_axis_, screw_bounds_.high[0],
-                                             screw_state[0], error)) {
-      return false;
-    }
-
-    if (error.norm() > 0.001) {
-      // std::cout << "Invalid state: " << error.norm() << "\n";
-      return false;
-    }
-    return true;
+  if (!found_ik) {
+    std::cout << "no IK found\n";
+    return;
   }
 
- protected:
-  ob::RealVectorBounds robot_bounds_;
-  ob::RealVectorBounds screw_bounds_;
-  moveit::core::RobotModelPtr kinematic_model_;
-  moveit::core::RobotStatePtr kinematic_state_;
-  moveit::core::JointModelGroupPtr joint_model_group_;
-  affordance_primitives::ScrewAxis screw_axis_;
-  Eigen::Isometry3d start_pose_;
-};
+  // std::cout << screw_state[0] << "\n";
+
+  // std::cout << "Sample state. Error: " << error.norm() << ". Vals: ";
+
+  std::vector<double> joint_values;
+  kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
+                                            joint_values);
+  for (size_t i = 0; i < joint_values.size(); ++i) {
+    robot_state[i] = joint_values[i];
+    // std::cout << robot_state[i] << ", ";
+  }
+  // std::cout << "\n";
+}
+
+void MyStateSampler::sampleUniform(ob::State *state) {
+  std::vector<double> screw_theta;
+  screw_theta.reserve(screw_bounds_.low.size());
+
+  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
+    screw_theta.push_back(
+        rng_.uniformReal(screw_bounds_.low[i], screw_bounds_.high[i]));
+  }
+
+  // std::cout << "Uniform sample: ";
+
+  sample(state, screw_theta);
+}
+
+void MyStateSampler::sampleUniformNear(ob::State *state, const ob::State *near,
+                                       double distance) {
+  const ob::CompoundStateSpace::StateType &compound_state =
+      *near->as<ob::CompoundStateSpace::StateType>();
+  const ob::RealVectorStateSpace::StateType &screw_state =
+      *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+
+  double screw_dist =
+      std::max(std::min(screw_state[0] + distance, screw_bounds_.high[0]),
+               screw_bounds_.low[0]);
+
+  std::vector<double> screw_theta{screw_dist};
+  sample(state, screw_theta);
+}
+
+void MyStateSampler::sampleGaussian(ob::State *state, const ob::State *mean,
+                                    double stdDev) {
+  const ob::CompoundStateSpace::StateType &compound_state =
+      *mean->as<ob::CompoundStateSpace::StateType>();
+  const ob::RealVectorStateSpace::StateType &screw_state =
+      *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+
+  double screw_dist = rng_.gaussian(screw_state[0], stdDev);
+  screw_dist = std::max(std::min(screw_dist, screw_bounds_.high[0]),
+                        screw_bounds_.low[0]);
+
+  std::vector<double> screw_theta{screw_dist};
+  sample(state, screw_theta);
+}
+
+// bool isNear(double a, double b, double tol = 1e-3) {
+//   return fabs(a - b) < fabs(tol);
+// }
+
+ScrewValidityChecker::ScrewValidityChecker(const ob::SpaceInformationPtr &si)
+    : ob::StateValidityChecker(si), robot_bounds_(1), screw_bounds_(1) {
+  // TODO: robot description and move group name need to be parameters
+  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
+  kinematic_model_ = robot_model_loader.getModel();
+  kinematic_state_ =
+      std::make_shared<moveit::core::RobotState>(kinematic_model_);
+  kinematic_state_->setToDefaultValues();
+
+  joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
+      *kinematic_model_->getJointModelGroup("panda_arm"));
+
+  std::string screw_msg_string, pose_msg_string;
+  si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
+  si->getStateSpace()->params().getParam("pose_param", pose_msg_string);
+  screw_axis_.setScrewAxis(strToScrewMsg(screw_msg_string));
+  tf2::fromMsg(strToPoseMsg(pose_msg_string), start_pose_);
+
+  ob::CompoundStateSpace *compound_space =
+      si_->getStateSpace()->as<ob::CompoundStateSpace>();
+  screw_bounds_ = compound_space->getSubspace(0)
+                      ->as<ob::RealVectorStateSpace>()
+                      ->getBounds();
+  robot_bounds_ = compound_space->getSubspace(1)
+                      ->as<ob::RealVectorStateSpace>()
+                      ->getBounds();
+}
+
+bool ScrewValidityChecker::isValid(const ob::State *state) const {
+  const ob::CompoundStateSpace::StateType &compound_state =
+      *state->as<ob::CompoundStateSpace::StateType>();
+  const ob::RealVectorStateSpace::StateType &screw_state =
+      *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+  const ob::RealVectorStateSpace::StateType &robot_state =
+      *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
+
+  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
+    if (screw_state[i] > screw_bounds_.high[i] ||
+        screw_state[i] < screw_bounds_.low[i]) {
+      return false;
+    }
+  }
+
+  // std::cout << "Validity state: ";
+
+  std::vector<double> joint_state(robot_bounds_.low.size());
+  for (size_t i = 0; i < robot_bounds_.low.size(); ++i) {
+    if (robot_state[i] > robot_bounds_.high[i] ||
+        robot_state[i] < robot_bounds_.low[i]) {
+      return false;
+    }
+    joint_state[i] = robot_state[i];
+    // std::cout << joint_state[i] << ", ";
+  }
+  // std::cout << "\n";
+
+  kinematic_state_->setJointGroupPositions("panda_arm", joint_state);
+  kinematic_state_->update(true);
+  auto this_state_pose = kinematic_state_->getFrameTransform("panda_link8");
+
+  // const Eigen::Vector3d lin_distance = this_state_pose.translation() -
+  // screw_axis.getQVector(); if (lin_distance.norm() > 0.01) {
+  //   std::cout << "Broad face: " << lin_distance.norm() << "\n";
+  //   return false;
+  // }
+
+  Eigen::VectorXd error(6);
+  error.setZero();
+  if (!affordance_primitives::constraintFn(this_state_pose, start_pose_,
+                                           screw_axis_, screw_bounds_.high[0],
+                                           screw_state[0], error)) {
+    return false;
+  }
+
+  if (error.norm() > 0.001) {
+    // std::cout << "Invalid state: " << error.norm() << "\n";
+    return false;
+  }
+  return true;
+}
 
 ob::ValidStateSamplerPtr allocOBValidStateSampler(
     const ob::SpaceInformation *si) {
@@ -527,10 +433,12 @@ ob::StateSamplerPtr allocMyStateSampler(const ob::StateSpace *state_space) {
   return std::make_shared<MyStateSampler>(state_space);
 }
 
+}  // namespace ap_planning
+
 // TODO: document this: both start pose and the screw axis should be given in
 // the planning frame!!
 std::pair<ompl::geometric::PathGeometric, double> plan(
-    const APPlanningRequest &req,
+    const ap_planning::APPlanningRequest &req,
     const std::vector<std::vector<double>> &start_configs,
     const std::vector<std::vector<double>> &goal_configs) {
   // construct the state space we are planning in
@@ -574,23 +482,24 @@ std::pair<ompl::geometric::PathGeometric, double> plan(
   ompl::base::StateSpacePtr space = screw_space + joint_space;
 
   // Add screw param (from starting pose screw)
-  auto screw_param = std::make_shared<ScrewParam>("screw_param");
+  auto screw_param = std::make_shared<ap_planning::ScrewParam>("screw_param");
   screw_param->setValue(
       affordance_primitives::screwMsgToStr(transformed_screw));
   space->params().add(screw_param);
 
   // Add starting pose
-  auto pose_param = std::make_shared<PoseParam>("pose_param");
-  pose_param->setValue(poseMsgToStr(req.start_pose));
+  auto pose_param = std::make_shared<ap_planning::PoseParam>("pose_param");
+  pose_param->setValue(ap_planning::poseMsgToStr(req.start_pose));
   space->params().add(pose_param);
 
-  space->setStateSamplerAllocator(allocMyStateSampler);
+  space->setStateSamplerAllocator(ap_planning::allocMyStateSampler);
   // TODO: lock space? space.lock()
   og::SimpleSetup ss(space);
 
   // set state validity checking for this space
   ss.setStateValidityChecker(
-      std::make_shared<ScrewValidityChecker>(ss.getSpaceInformation()));
+      std::make_shared<ap_planning::ScrewValidityChecker>(
+          ss.getSpaceInformation()));
 
   // create a number start states
   for (const auto &start_state : start_configs) {
@@ -610,7 +519,8 @@ std::pair<ompl::geometric::PathGeometric, double> plan(
   // screw_axis.getTF(req.theta);
 
   // create a number of goal states
-  auto goal_obj = std::make_shared<ScrewGoal>(ss.getSpaceInformation());
+  auto goal_obj =
+      std::make_shared<ap_planning::ScrewGoal>(ss.getSpaceInformation());
   for (const auto &goal_state : goal_configs) {
     ob::ScopedState<> goal(space);
     goal[0] = req.theta;
@@ -628,7 +538,8 @@ std::pair<ompl::geometric::PathGeometric, double> plan(
   // planner->setRange(0.25);
   ss.setPlanner(planner);
 
-  ss.getSpaceInformation()->setValidStateSamplerAllocator(allocScrewSampler);
+  ss.getSpaceInformation()->setValidStateSamplerAllocator(
+      ap_planning::allocScrewSampler);
 
   // attempt to solve the problem within ten seconds of planning time
   ob::PlannerStatus solved = ss.solve(5.0);
@@ -645,8 +556,9 @@ std::pair<ompl::geometric::PathGeometric, double> plan(
   return std::make_pair(og::PathGeometric(ss.getSpaceInformation()), 0.0);
 }
 
+// TODO: check waypoints for validity
 bool solutionIsValid(og::PathGeometric &solution,
-                     const APPlanningRequest &req) {
+                     const ap_planning::APPlanningRequest &req) {
   if (solution.getStateCount() < 1) {
     return false;
   }
@@ -760,8 +672,8 @@ int main(int argc, char **argv) {
   visual_tools.publishRobotState(kinematic_state);
   visual_tools.trigger();
 
-  std::queue<APPlanningRequest> planning_queue;
-  APPlanningRequest single_request;
+  std::queue<ap_planning::APPlanningRequest> planning_queue;
+  ap_planning::APPlanningRequest single_request;
   single_request.screw_msg.header.frame_id = "panda_link0";
 
   // For now, all requests start at same point
