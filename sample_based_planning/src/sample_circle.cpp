@@ -796,24 +796,6 @@ int main(int argc, char **argv) {
 
     show_screw(req.screw_msg, visual_tools);
 
-    // generate start configs
-    std::vector<std::vector<double>> start_configs, goal_configs;
-    bool found_ik;
-    for (size_t i = 0; i < 10; ++i) {
-      std::vector<double> joint_values;
-      found_ik = kinematic_state->setFromIK(joint_model_group, req.start_pose);
-      if (found_ik) {
-        // check to see if duplicates?
-        kinematic_state->copyJointGroupPositions(joint_model_group,
-                                                 joint_values);
-
-        if (checkDuplicateState(start_configs, joint_values)) {
-          start_configs.push_back(joint_values);
-        }
-      }
-      kinematic_state->setToDefaultValues();
-    }
-
     // We need to transform the screw to be in the starting frame
     geometry_msgs::TransformStamped tf_msg;
     tf_msg.header.frame_id = "panda_link0";
@@ -832,8 +814,39 @@ int main(int argc, char **argv) {
     Eigen::Isometry3d goal_pose =
         planning_to_start * screw_axis.getTF(req.theta);
 
-    // generate goal configs
-    for (size_t i = 0; i < 10; ++i) {
+    // generate start configs
+    kinematic_state->setToRandomPositions();
+    std::vector<std::vector<double>> start_configs, goal_configs;
+    bool found_ik;
+    for (size_t i = 0; i < 5; ++i) {
+      std::vector<double> joint_values;
+      found_ik = kinematic_state->setFromIK(joint_model_group, req.start_pose);
+      if (found_ik) {
+        // check to see if duplicates?
+        kinematic_state->copyJointGroupPositions(joint_model_group,
+                                                 joint_values);
+
+        if (checkDuplicateState(start_configs, joint_values)) {
+          start_configs.push_back(joint_values);
+        }
+      }
+
+      found_ik = kinematic_state->setFromIK(joint_model_group, tf2::toMsg(goal_pose));
+      if (found_ik) {
+        // check to see if duplicates?
+        kinematic_state->copyJointGroupPositions(joint_model_group,
+                                                 joint_values);
+
+        if (checkDuplicateState(goal_configs, joint_values)) {
+          goal_configs.push_back(joint_values);
+        }
+      }
+
+      kinematic_state->setToRandomPositions();
+    }
+
+    // generate additional goal configs
+    for (size_t i = 0; i < 5; ++i) {
       std::vector<double> joint_values;
       found_ik =
           kinematic_state->setFromIK(joint_model_group, tf2::toMsg(goal_pose));
@@ -846,7 +859,7 @@ int main(int argc, char **argv) {
           goal_configs.push_back(joint_values);
         }
       }
-      kinematic_state->setToDefaultValues();
+      kinematic_state->setToRandomPositions();
     }
 
     double total_success_time = 0.0;
