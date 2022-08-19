@@ -18,13 +18,13 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <moveit/robot_state/robot_state.h>
 #include <moveit_visual_tools/moveit_visual_tools.h>
-#include <rclcpp/rclcpp.hpp>
+#include <ros/ros.h>
 
-#include <affordance_primitive_msgs/msg/screw_stamped.hpp>
+#include <affordance_primitive_msgs/ScrewStamped.h>
 #include <affordance_primitives/screw_model/affordance_utils.hpp>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
 #include <affordance_primitives/screw_planning/screw_planning.hpp>
-#include <tf2_eigen/tf2_eigen.hpp>
+#include <tf2_eigen/tf2_eigen.h>
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
@@ -34,14 +34,14 @@ moveit::core::RobotModelPtr kinematic_model;
 static const std::string LOGNAME = "ompl_tests";
 
 struct APPlanningRequest {
-  affordance_primitive_msgs::msg::ScrewStamped screw_msg;
+  affordance_primitive_msgs::ScrewStamped screw_msg;
   double theta;
-  geometry_msgs::msg::Pose start_pose;
+  geometry_msgs::Pose start_pose;
 };
 
-affordance_primitive_msgs::msg::ScrewStamped strToScrewMsg(
+affordance_primitive_msgs::ScrewStamped strToScrewMsg(
     const std::string input) {
-  affordance_primitive_msgs::msg::ScrewStamped output;
+  affordance_primitive_msgs::ScrewStamped output;
 
   std::stringstream ss(input);
   std::vector<std::string> lines;
@@ -83,16 +83,16 @@ class ScrewParam : public ob::GenericParam {
     return true;
   }
 
-  affordance_primitive_msgs::msg::ScrewStamped getScrew() const {
+  affordance_primitive_msgs::ScrewStamped getScrew() const {
     return screw_msg;
   };
 
  protected:
-  affordance_primitive_msgs::msg::ScrewStamped screw_msg;
+  affordance_primitive_msgs::ScrewStamped screw_msg;
 };
 
-geometry_msgs::msg::Pose strToPoseMsg(const std::string input) {
-  geometry_msgs::msg::Pose output;
+geometry_msgs::Pose strToPoseMsg(const std::string input) {
+  geometry_msgs::Pose output;
 
   std::stringstream ss(input);
   std::vector<std::string> lines;
@@ -114,7 +114,7 @@ geometry_msgs::msg::Pose strToPoseMsg(const std::string input) {
   return output;
 }
 
-std::string poseMsgToStr(const geometry_msgs::msg::Pose &pose_msg) {
+std::string poseMsgToStr(const geometry_msgs::Pose &pose_msg) {
   std::stringstream ss;
   ss << "Position X: " << pose_msg.position.x
      << "\nPosition Y: " << pose_msg.position.y
@@ -139,10 +139,10 @@ class PoseParam : public ob::GenericParam {
     return true;
   }
 
-  geometry_msgs::msg::Pose getPose() const { return pose_msg; };
+  geometry_msgs::Pose getPose() const { return pose_msg; };
 
  protected:
-  geometry_msgs::msg::Pose pose_msg;
+  geometry_msgs::Pose pose_msg;
 };
 // TODO: change this to GoalLazySamples
 class ScrewGoal : public ob::GoalStates {
@@ -214,7 +214,7 @@ class ScrewSampler : public ob::ValidStateSampler {
     Eigen::Isometry3d current_pose =
         start_pose * screw_axis.getTF(screw_state[0]);
 
-    geometry_msgs::msg::Pose pose_msg = tf2::toMsg(current_pose);
+    geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
     // auto t1 = std::chrono::high_resolution_clock::now();
     bool found_ik =
@@ -319,7 +319,7 @@ class MyStateSampler : public ob::StateSampler {
     Eigen::Isometry3d current_pose =
         start_pose * screw_axis.getTF(screw_state[0]);
 
-    geometry_msgs::msg::Pose pose_msg = tf2::toMsg(current_pose);
+    geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
     // auto t1 = std::chrono::high_resolution_clock::now();
     bool found_ik =
@@ -546,7 +546,7 @@ std::pair<ompl::geometric::PathGeometric, double> plan(
   }
 
   // We need to transform the screw to be in the starting frame
-  geometry_msgs::msg::TransformStamped tf_msg;
+  geometry_msgs::TransformStamped tf_msg;
   tf_msg.header.frame_id = "panda_link0";
   tf_msg.child_frame_id = "panda_link8";
   tf_msg.transform.rotation = req.start_pose.orientation;
@@ -650,8 +650,8 @@ bool solutionIsValid(og::PathGeometric &solution,
   return true;
 }
 
-trajectory_msgs::msg::JointTrajectoryPoint ompl_to_msg(const ob::State *state) {
-  trajectory_msgs::msg::JointTrajectoryPoint output;
+trajectory_msgs::JointTrajectoryPoint ompl_to_msg(const ob::State *state) {
+  trajectory_msgs::JointTrajectoryPoint output;
   output.positions.reserve(7);
 
   const ob::CompoundStateSpace::StateType &compound_state =
@@ -675,11 +675,11 @@ void show_screw(const affordance_primitives::ScrewStamped &screw_msg,
   tf2::fromMsg(screw_msg.origin, origin);
 
   Eigen::Vector3d end_point = origin + 0.2 * axis.normalized();
-  geometry_msgs::msg::Point end = tf2::toMsg(end_point);
+  geometry_msgs::Point end = tf2::toMsg(end_point);
 
   visual_tools.publishArrow(screw_msg.origin, end);
   visual_tools.trigger();
-};
+}
 
 bool checkDuplicateState(const std::vector<std::vector<double>> &states,
                          const std::vector<double> &new_state) {
@@ -707,21 +707,14 @@ bool checkDuplicateState(const std::vector<std::vector<double>> &states,
 }
 
 int main(int argc, char **argv) {
-  rclcpp::init(argc, argv);
-  rclcpp::NodeOptions node_options;
-  node_options.automatically_declare_parameters_from_overrides(true);
-  auto node = rclcpp::Node::make_shared("ompl_constrained_planning_demo_node",
-                                        node_options);
+  ros::init(argc, argv, "sample_based_planning");
+  ros::NodeHandle nh;
+  ros::AsyncSpinner spinner(2);
+  spinner.start();
 
-  const auto &LOGGER = node->get_logger();
-
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node);
-  auto spinner = std::thread([&executor]() { executor.spin(); });
-
-  robot_model_loader::RobotModelLoader robot_model_loader(node);
+  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
   kinematic_model = robot_model_loader.getModel();
-  RCLCPP_INFO(LOGGER, "Model frame: %s",
+  ROS_INFO("Model frame: %s",
               kinematic_model->getModelFrame().c_str());
 
   moveit::core::RobotStatePtr kinematic_state(
@@ -730,8 +723,12 @@ int main(int argc, char **argv) {
   const moveit::core::JointModelGroup *joint_model_group =
       kinematic_model->getJointModelGroup("panda_arm");
 
-  const std::vector<std::string> &joint_names =
-      joint_model_group->getVariableNames();
+  std::vector<double> default_joint_state{0, -0.78, 0, -2.35, 0, 1.57, 0.785};
+  kinematic_state->setJointGroupPositions(joint_model_group,
+                                          default_joint_state);
+
+  // const std::vector<std::string> &joint_names =
+  //     joint_model_group->getVariableNames();
 
   // std::vector<double> goal_joint_state_found{
   //     2.55424, -0.0783369, -2.4615, -2.35386, 0.0215131, 2.35256, 0.0805782};
@@ -742,13 +739,13 @@ int main(int argc, char **argv) {
   // "\n\n\n\n\n\n\nCalculated Goal IK:\n"
   //           << pose_eig.translation() << "\n";
 
-  rclcpp::sleep_for(std::chrono::seconds(2));
+  ros::Duration(2.0).sleep();
 
-  moveit_visual_tools::MoveItVisualTools visual_tools(node, "panda_link0");
+  moveit_visual_tools::MoveItVisualTools visual_tools("panda_link0");
   visual_tools.deleteAllMarkers();
   visual_tools.loadRemoteControl();
   visual_tools.setRobotStateTopic("/display_robot_state");
-  // visual_tools.publishRobotState(kinematic_state);
+  visual_tools.publishRobotState(kinematic_state);
   visual_tools.trigger();
 
   std::queue<APPlanningRequest> planning_queue;
@@ -779,13 +776,13 @@ int main(int argc, char **argv) {
   single_request.screw_msg.origin.x -= 0.1;
   planning_queue.push(single_request);
 
-  single_request.screw_msg.origin = geometry_msgs::msg::Point();
+  single_request.screw_msg.origin = geometry_msgs::Point();
   planning_queue.push(single_request);
 
   size_t success_count = 0;
 
   // Plan each screw request
-  while (planning_queue.size() > 0 && rclcpp::ok()) {
+  while (planning_queue.size() > 0 && ros::ok()) {
     auto req = planning_queue.front();
     planning_queue.pop();
     success_count = 0;
@@ -813,7 +810,7 @@ int main(int argc, char **argv) {
     }
 
     // We need to transform the screw to be in the starting frame
-    geometry_msgs::msg::TransformStamped tf_msg;
+    geometry_msgs::TransformStamped tf_msg;
     tf_msg.header.frame_id = "panda_link0";
     tf_msg.child_frame_id = "panda_link8";
     tf_msg.transform.rotation = req.start_pose.orientation;
@@ -862,11 +859,11 @@ int main(int argc, char **argv) {
       ++success_count;
       solution.interpolate();
 
-      moveit_msgs::msg::DisplayTrajectory joint_traj;
+      moveit_msgs::DisplayTrajectory joint_traj;
       joint_traj.model_id = "panda";
-      joint_traj.trajectory.push_back(moveit_msgs::msg::RobotTrajectory());
+      joint_traj.trajectory.push_back(moveit_msgs::RobotTrajectory());
 
-      moveit_msgs::msg::RobotState start_msg;
+      moveit_msgs::RobotState start_msg;
       start_msg.joint_state.name = joint_model_group->getVariableNames();
       auto first_waypoint = ompl_to_msg(solution.getState(0));
       start_msg.joint_state.position = first_waypoint.positions;
@@ -890,8 +887,7 @@ int main(int argc, char **argv) {
 
       visual_tools.publishTrajectoryPath(joint_traj);
     }
-    RCLCPP_INFO_STREAM(
-        LOGGER, "Num success: " << success_count
+    ROS_INFO_STREAM("Num success: " << success_count
                                 << "\nWith #start = " << start_configs.size()
                                 << "\n#end = " << goal_configs.size()
                                 << "\nAvg time = "
@@ -899,6 +895,6 @@ int main(int argc, char **argv) {
                                 << "\nMax found time = " << max_found_time);
   }
 
-  rclcpp::shutdown();
+  ros::shutdown();
   return 0;
 }
