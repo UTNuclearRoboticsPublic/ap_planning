@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(ompl_tests)
+project(sample_based_planning)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -27,8 +27,8 @@ find_package(ompl REQUIRED)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
- INCLUDE_DIRS
-  include
+#  INCLUDE_DIRS
+#   include
  LIBRARIES
   ${PROJECT_NAME}
  CATKIN_DEPENDS
@@ -38,9 +38,9 @@ catkin_package(
 )
 
 
-include_directories(
-  include
-)
+# include_directories(
+#   include
+# )
 include_directories(SYSTEM
                     ${catkin_INCLUDE_DIRS}
                     ${Boost_INCLUDE_DIRS}

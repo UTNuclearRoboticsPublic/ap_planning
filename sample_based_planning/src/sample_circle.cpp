@@ -31,7 +31,7 @@ namespace og = ompl::geometric;
 
 moveit::core::RobotModelPtr kinematic_model;
 
-static const std::string LOGNAME = "ompl_tests";
+static const std::string LOGNAME = "sample_based_planning";
 
 struct APPlanningRequest {
   affordance_primitive_msgs::ScrewStamped screw_msg;
