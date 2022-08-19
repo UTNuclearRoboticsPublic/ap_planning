@@ -21,10 +21,10 @@
 #include <ros/ros.h>
 
 #include <affordance_primitive_msgs/ScrewStamped.h>
+#include <tf2_eigen/tf2_eigen.h>
 #include <affordance_primitives/screw_model/affordance_utils.hpp>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
 #include <affordance_primitives/screw_planning/screw_planning.hpp>
-#include <tf2_eigen/tf2_eigen.h>
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
@@ -39,8 +39,7 @@ struct APPlanningRequest {
   geometry_msgs::Pose start_pose;
 };
 
-affordance_primitive_msgs::ScrewStamped strToScrewMsg(
-    const std::string input) {
+affordance_primitive_msgs::ScrewStamped strToScrewMsg(const std::string input) {
   affordance_primitive_msgs::ScrewStamped output;
 
   std::stringstream ss(input);
@@ -714,8 +713,7 @@ int main(int argc, char **argv) {
 
   robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
   kinematic_model = robot_model_loader.getModel();
-  ROS_INFO("Model frame: %s",
-              kinematic_model->getModelFrame().c_str());
+  ROS_INFO("Model frame: %s", kinematic_model->getModelFrame().c_str());
 
   moveit::core::RobotStatePtr kinematic_state(
       new moveit::core::RobotState(kinematic_model));
@@ -887,12 +885,12 @@ int main(int argc, char **argv) {
 
       visual_tools.publishTrajectoryPath(joint_traj);
     }
-    ROS_INFO_STREAM("Num success: " << success_count
-                                << "\nWith #start = " << start_configs.size()
-                                << "\n#end = " << goal_configs.size()
-                                << "\nAvg time = "
-                                << total_success_time / success_count
-                                << "\nMax found time = " << max_found_time);
+    ROS_INFO_STREAM("Num success: "
+                    << success_count
+                    << "\nWith #start = " << start_configs.size()
+                    << "\n#end = " << goal_configs.size()
+                    << "\nAvg time = " << total_success_time / success_count
+                    << "\nMax found time = " << max_found_time);
   }
 
   ros::shutdown();

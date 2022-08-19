@@ -1,12 +1,10 @@
-#include "ompl_tests/ConstrainedPlanningCommon.h"
 #include <affordance_primitives/screw_planning/screw_planning.hpp>
+#include "ompl_tests/ConstrainedPlanningCommon.h"
 
-class ScrewConstraint : public ob::Constraint
-{
-public:
+class ScrewConstraint : public ob::Constraint {
+ public:
   // Space: [x, y, theta]
-  ScrewConstraint() : ob::Constraint(2, 1)
-  {
+  ScrewConstraint() : ob::Constraint(2, 1) {
     geometry_msgs::msg::Pose pose_msg;
     pose_msg.orientation.w = 1;
     pose_msg.position.y = 5;
@@ -17,8 +15,8 @@ public:
     start_pose_.setIdentity();
   }
 
-  void function(const Eigen::Ref<const Eigen::VectorXd> &x, Eigen::Ref<Eigen::VectorXd> out) const override
-  {
+  void function(const Eigen::Ref<const Eigen::VectorXd> &x,
+                Eigen::Ref<Eigen::VectorXd> out) const override {
     // Create tf from state
     Eigen::Isometry3d current_state;
     current_state.setIdentity();
@@ -31,7 +29,8 @@ public:
     const auto tf_q_to_starting = current_state.inverse() * start_pose_;
 
     // Find the closest point on the path
-    const auto closest_pt = affordance_primitives::findClosestPoint(tf_q_to_starting, theta_0_, theta_max_, screw_axis_);
+    const auto closest_pt = affordance_primitives::findClosestPoint(
+        tf_q_to_starting, theta_0_, theta_max_, screw_axis_);
 
     // Use closest point to calculate error
     auto error = affordance_primitives::calcError(closest_pt.second);
@@ -45,26 +44,25 @@ public:
     out = output;
   }
 
-  void jacobian(const Eigen::Ref<const Eigen::VectorXd> &x, Eigen::Ref<Eigen::MatrixXd> out) const override
-  {
+  void jacobian(const Eigen::Ref<const Eigen::VectorXd> &x,
+                Eigen::Ref<Eigen::MatrixXd> out) const override {
     Eigen::Vector3d err;
     function(x, err);
 
     out = err.transpose().normalized();
   }
 
-private:
+ private:
   affordance_primitives::ScrewAxis screw_axis_;
   Eigen::Isometry3d start_pose_;
   double theta_max_ = 0.5 * M_PI;
   double theta_0_ = 0.5 * theta_max_;
 };
 
-class ScrewProjection : public ob::ProjectionEvaluator
-{
-public:
-  ScrewProjection(const ob::StateSpacePtr &space) : ob::ProjectionEvaluator(space)
-  {
+class ScrewProjection : public ob::ProjectionEvaluator {
+ public:
+  ScrewProjection(const ob::StateSpacePtr &space)
+      : ob::ProjectionEvaluator(space) {
     geometry_msgs::msg::Pose pose_msg;
     pose_msg.orientation.w = 1;
     pose_msg.position.y = 5;
@@ -73,20 +71,16 @@ public:
     screw_axis_.setScrewAxis(pose_msg, axis);
   }
 
-  unsigned int getDimension() const override
-  {
-    return 1;
-  }
+  unsigned int getDimension() const override { return 1; }
 
-  void defaultCellSizes() override
-  {
+  void defaultCellSizes() override {
     cellSizes_.resize(1);
     cellSizes_[0] = 0.02;
     // cellSizes_[1] = 0.1;
   }
 
-  void project(const ob::State *state, Eigen::Ref<Eigen::VectorXd> projection) const override
-  {
+  void project(const ob::State *state,
+               Eigen::Ref<Eigen::VectorXd> projection) const override {
     auto &&x = *state->as<ob::ConstrainedStateSpace::StateType>();
     // projection(0) = x[0];
     // projection(1) = x[1];
@@ -102,19 +96,19 @@ public:
     const auto tf_q_to_starting = current_state.inverse() * start_pose_;
 
     // Find the closest point on the path
-    const auto closest_pt = affordance_primitives::findClosestPoint(tf_q_to_starting, theta_0_, theta_max_, screw_axis_);
+    const auto closest_pt = affordance_primitives::findClosestPoint(
+        tf_q_to_starting, theta_0_, theta_max_, screw_axis_);
     projection(0) = closest_pt.first;
   }
 
-private:
+ private:
   affordance_primitives::ScrewAxis screw_axis_;
   Eigen::Isometry3d start_pose_;
   double theta_max_ = 0.5 * M_PI;
   double theta_0_ = 0.5 * theta_max_;
 };
 
-bool obstacles(const ob::State *state)
-{
+bool obstacles(const ob::State *state) {
   // auto &&x = *state->as<ob::ConstrainedStateSpace::StateType>();
 
   // if (-0.80 < x[2] && x[2] < -0.6)
@@ -139,8 +133,8 @@ bool obstacles(const ob::State *state)
   return true;
 }
 
-bool screwPlanningOnce(ConstrainedProblem &cp, enum PLANNER_TYPE planner, bool output)
-{
+bool screwPlanningOnce(ConstrainedProblem &cp, enum PLANNER_TYPE planner,
+                       bool output) {
   cp.setPlanner(planner, "screw");
 
   // Solve the problem
@@ -156,22 +150,22 @@ bool screwPlanningOnce(ConstrainedProblem &cp, enum PLANNER_TYPE planner, bool o
 
   cp.atlasStats();
 
-  if (output)
-    cp.dumpGraph("screw");
+  if (output) cp.dumpGraph("screw");
 
   return stat;
 }
 
-bool screwPlanningBench(ConstrainedProblem &cp, std::vector<enum PLANNER_TYPE> &planners)
-{
+bool screwPlanningBench(ConstrainedProblem &cp,
+                        std::vector<enum PLANNER_TYPE> &planners) {
   cp.setupBenchmark(planners, "screw");
   cp.runBenchmark();
   return false;
 }
 
-bool screwPlanning(bool output, enum SPACE_TYPE space, std::vector<enum PLANNER_TYPE> &planners,
-                   struct ConstrainedOptions &c_opt, struct AtlasOptions &a_opt, bool bench)
-{
+bool screwPlanning(bool output, enum SPACE_TYPE space,
+                   std::vector<enum PLANNER_TYPE> &planners,
+                   struct ConstrainedOptions &c_opt, struct AtlasOptions &a_opt,
+                   bool bench) {
   // Create the ambient space state space for the problem.
   auto rvss = std::make_shared<ob::RealVectorStateSpace>(2);
 
@@ -188,7 +182,8 @@ bool screwPlanning(bool output, enum SPACE_TYPE space, std::vector<enum PLANNER_
   cp.setConstrainedOptions(c_opt);
   cp.setAtlasOptions(a_opt);
 
-  cp.css->registerProjection("screw", std::make_shared<ScrewProjection>(cp.css));
+  cp.css->registerProjection("screw",
+                             std::make_shared<ScrewProjection>(cp.css));
 
   Eigen::VectorXd start(2), goal(2);
   start << 0, 0;
@@ -204,12 +199,13 @@ bool screwPlanning(bool output, enum SPACE_TYPE space, std::vector<enum PLANNER_
 }
 
 auto help_msg = "Shows this help message.";
-auto output_msg = "Dump found solution path (if one exists) in plain text and planning graph in GraphML to "
-                  "`screw_path.txt` and `screw_graph.graphml` respectively.";
+auto output_msg =
+    "Dump found solution path (if one exists) in plain text and planning graph "
+    "in GraphML to "
+    "`screw_path.txt` and `screw_graph.graphml` respectively.";
 auto bench_msg = "Do benchmarking on provided planner list.";
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   bool output, bench;
   enum SPACE_TYPE space = PJ;
   std::vector<enum PLANNER_TYPE> planners = {PRM};
@@ -219,8 +215,10 @@ int main(int argc, char **argv)
 
   po::options_description desc("Options");
   desc.add_options()("help,h", help_msg);
-  desc.add_options()("output,o", po::bool_switch(&output)->default_value(false), output_msg);
-  desc.add_options()("bench", po::bool_switch(&bench)->default_value(false), bench_msg);
+  desc.add_options()("output,o", po::bool_switch(&output)->default_value(false),
+                     output_msg);
+  desc.add_options()("bench", po::bool_switch(&bench)->default_value(false),
+                     bench_msg);
 
   addSpaceOption(desc, &space);
   addPlannerOption(desc, &planners);
@@ -231,8 +229,7 @@ int main(int argc, char **argv)
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
 
-  if (vm.count("help") != 0u)
-  {
+  if (vm.count("help") != 0u) {
     std::cout << desc << std::endl;
     return 1;
   }

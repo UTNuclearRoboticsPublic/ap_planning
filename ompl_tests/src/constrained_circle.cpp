@@ -36,54 +36,45 @@
 
 #include "ompl_tests/ConstrainedPlanningCommon.h"
 
-class CircleConstraint : public ob::Constraint
-{
-public:
-  CircleConstraint() : ob::Constraint(3, 1)
-  {
-  }
+class CircleConstraint : public ob::Constraint {
+ public:
+  CircleConstraint() : ob::Constraint(3, 1) {}
 
-  void function(const Eigen::Ref<const Eigen::VectorXd> &x, Eigen::Ref<Eigen::VectorXd> out) const override
-  {
+  void function(const Eigen::Ref<const Eigen::VectorXd> &x,
+                Eigen::Ref<Eigen::VectorXd> out) const override {
     out[0] = x.head(2).norm() - 1;
     out[1] = fabs(atan2(x[1], x[0]) - x[2]);
   }
 
-  // void jacobian(const Eigen::Ref<const Eigen::VectorXd> &x, Eigen::Ref<Eigen::MatrixXd> out) const override
+  // void jacobian(const Eigen::Ref<const Eigen::VectorXd> &x,
+  // Eigen::Ref<Eigen::MatrixXd> out) const override
   // {
   //   out = x.transpose().normalized();
   // }
 };
 
-class CircleProjection : public ob::ProjectionEvaluator
-{
-public:
-  CircleProjection(const ob::StateSpacePtr &space) : ob::ProjectionEvaluator(space)
-  {
-  }
+class CircleProjection : public ob::ProjectionEvaluator {
+ public:
+  CircleProjection(const ob::StateSpacePtr &space)
+      : ob::ProjectionEvaluator(space) {}
 
-  unsigned int getDimension() const override
-  {
-    return 2;
-  }
+  unsigned int getDimension() const override { return 2; }
 
-  void defaultCellSizes() override
-  {
+  void defaultCellSizes() override {
     cellSizes_.resize(2);
     cellSizes_[0] = 0.1;
     cellSizes_[1] = 0.1;
   }
 
-  void project(const ob::State *state, Eigen::Ref<Eigen::VectorXd> projection) const override
-  {
+  void project(const ob::State *state,
+               Eigen::Ref<Eigen::VectorXd> projection) const override {
     auto &&x = *state->as<ob::ConstrainedStateSpace::StateType>();
     projection(0) = atan2(x[1], x[0]);
     projection(1) = x[3];
   }
 };
 
-bool obstacles(const ob::State *state)
-{
+bool obstacles(const ob::State *state) {
   // auto &&x = *state->as<ob::ConstrainedStateSpace::StateType>();
 
   // if (-0.80 < x[2] && x[2] < -0.6)
@@ -108,15 +99,14 @@ bool obstacles(const ob::State *state)
   return true;
 }
 
-bool circlePlanningOnce(ConstrainedProblem &cp, enum PLANNER_TYPE planner, bool output)
-{
+bool circlePlanningOnce(ConstrainedProblem &cp, enum PLANNER_TYPE planner,
+                        bool output) {
   cp.setPlanner(planner, "circle");
 
   // Solve the problem
   ob::PlannerStatus stat = cp.solveOnce(output, "circle");
 
-  if (output)
-  {
+  if (output) {
     OMPL_INFORM("Dumping problem information to `circle_info.txt`.");
     std::ofstream infofile("circle_info.txt");
     infofile << cp.type << std::endl;
@@ -125,22 +115,22 @@ bool circlePlanningOnce(ConstrainedProblem &cp, enum PLANNER_TYPE planner, bool 
 
   cp.atlasStats();
 
-  if (output)
-    cp.dumpGraph("circle");
+  if (output) cp.dumpGraph("circle");
 
   return stat;
 }
 
-bool circlePlanningBench(ConstrainedProblem &cp, std::vector<enum PLANNER_TYPE> &planners)
-{
+bool circlePlanningBench(ConstrainedProblem &cp,
+                         std::vector<enum PLANNER_TYPE> &planners) {
   cp.setupBenchmark(planners, "circle");
   cp.runBenchmark();
   return false;
 }
 
-bool circlePlanning(bool output, enum SPACE_TYPE space, std::vector<enum PLANNER_TYPE> &planners,
-                    struct ConstrainedOptions &c_opt, struct AtlasOptions &a_opt, bool bench)
-{
+bool circlePlanning(bool output, enum SPACE_TYPE space,
+                    std::vector<enum PLANNER_TYPE> &planners,
+                    struct ConstrainedOptions &c_opt,
+                    struct AtlasOptions &a_opt, bool bench) {
   // Create the ambient space state space for the problem.
   auto rvss = std::make_shared<ob::RealVectorStateSpace>(3);
 
@@ -157,11 +147,12 @@ bool circlePlanning(bool output, enum SPACE_TYPE space, std::vector<enum PLANNER
   cp.setConstrainedOptions(c_opt);
   cp.setAtlasOptions(a_opt);
 
-  cp.css->registerProjection("circle", std::make_shared<CircleProjection>(cp.css));
+  cp.css->registerProjection("circle",
+                             std::make_shared<CircleProjection>(cp.css));
 
   Eigen::VectorXd start(3), goal(3);
   start << 1, 0, 0;
-  goal << 0, 1, 0.5*M_PI;
+  goal << 0, 1, 0.5 * M_PI;
 
   cp.setStartAndGoalStates(start, goal);
   cp.ss->setStateValidityChecker(obstacles);
@@ -173,12 +164,13 @@ bool circlePlanning(bool output, enum SPACE_TYPE space, std::vector<enum PLANNER
 }
 
 auto help_msg = "Shows this help message.";
-auto output_msg = "Dump found solution path (if one exists) in plain text and planning graph in GraphML to "
-                  "`circle_path.txt` and `circle_graph.graphml` respectively.";
+auto output_msg =
+    "Dump found solution path (if one exists) in plain text and planning graph "
+    "in GraphML to "
+    "`circle_path.txt` and `circle_graph.graphml` respectively.";
 auto bench_msg = "Do benchmarking on provided planner list.";
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   bool output, bench;
   enum SPACE_TYPE space = PJ;
   std::vector<enum PLANNER_TYPE> planners = {RRT};
@@ -188,8 +180,10 @@ int main(int argc, char **argv)
 
   po::options_description desc("Options");
   desc.add_options()("help,h", help_msg);
-  desc.add_options()("output,o", po::bool_switch(&output)->default_value(false), output_msg);
-  desc.add_options()("bench", po::bool_switch(&bench)->default_value(false), bench_msg);
+  desc.add_options()("output,o", po::bool_switch(&output)->default_value(false),
+                     output_msg);
+  desc.add_options()("bench", po::bool_switch(&bench)->default_value(false),
+                     bench_msg);
 
   addSpaceOption(desc, &space);
   addPlannerOption(desc, &planners);
@@ -200,8 +194,7 @@ int main(int argc, char **argv)
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
 
-  if (vm.count("help") != 0u)
-  {
+  if (vm.count("help") != 0u) {
     std::cout << desc << std::endl;
     return 1;
   }

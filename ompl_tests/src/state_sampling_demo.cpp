@@ -94,8 +94,8 @@ class MyValidStateSampler : public ob::ValidStateSampler {
 
 class MyStateSampler : public ob::StateSampler {
  public:
-  MyStateSampler(const ob::StateSpace *state_space) : StateSampler(state_space) {
-  }
+  MyStateSampler(const ob::StateSpace *state_space)
+      : StateSampler(state_space) {}
   // Generate a sample in the valid part of the R^3 state space
   // Valid states satisfy the following constraints:
   // -1<= x,y,z <=1
@@ -115,7 +115,8 @@ class MyStateSampler : public ob::StateSampler {
     val[2] = z;
     // std::cout << "Drawing uniform sample\n";
   }
-  void sampleUniformNear(ob::State *state, const ob::State *near, double distance) override {
+  void sampleUniformNear(ob::State *state, const ob::State *near,
+                         double distance) override {
     double *val =
         static_cast<ob::RealVectorStateSpace::StateType *>(state)->values;
     double z = rng_.uniformReal(-1, 1);
@@ -148,7 +149,8 @@ class MyStateSampler : public ob::StateSampler {
     std::cout << "Drawing uniformnear sample\n";
     // return true;
   }
-  void sampleGaussian (ob::State *state, const ob::State *mean, double stdDev) override {
+  void sampleGaussian(ob::State *state, const ob::State *mean,
+                      double stdDev) override {
     double *val =
         static_cast<ob::RealVectorStateSpace::StateType *>(state)->values;
     double z = rng_.uniformReal(-1, 1);
@@ -184,8 +186,8 @@ class MyStateSampler : public ob::StateSampler {
   // // We don't need this in the example below.
   // bool sampleNear(ob::State * state, const ob::State * /*near*/,
   //                 const double /*distance*/) override {
-  //   throw ompl::Exception("MyValidStateSampler::sampleNear", "not implemented");
-  //   return false;
+  //   throw ompl::Exception("MyValidStateSampler::sampleNear", "not
+  //   implemented"); return false;
   // }
 
  protected:
@@ -223,8 +225,7 @@ ob::ValidStateSamplerPtr allocOBValidStateSampler(
 }
 
 // return an instance of my sampler
-ob::StateSamplerPtr allocMyStateSampler(
-    const ob::StateSpace *state_space) {
+ob::StateSamplerPtr allocMyStateSampler(const ob::StateSpace *state_space) {
   return std::make_shared<MyStateSampler>(state_space);
 }
 
@@ -273,8 +274,6 @@ void plan(int samplerIndex) {
     // use my sampler
     ss.getSpaceInformation()->setValidStateSamplerAllocator(
         allocMyValidStateSampler);
-
-
 
   // create a planner for the defined space
   auto planner(std::make_shared<og::RRT>(ss.getSpaceInformation()));
