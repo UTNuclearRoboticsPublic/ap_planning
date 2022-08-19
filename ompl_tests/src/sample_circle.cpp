@@ -772,9 +772,16 @@ int main(int argc, char **argv) {
   planning_queue.push(single_request);
 
   single_request.screw_msg.origin.x -= 0.1;
+  single_request.screw_msg.pitch = 0.1;
   planning_queue.push(single_request);
 
   single_request.screw_msg.origin = geometry_msgs::Point();
+  planning_queue.push(single_request);
+
+  single_request.screw_msg.origin = single_request.start_pose.position;
+  single_request.screw_msg.axis.x = -1;
+  single_request.screw_msg.axis.z = 1;
+  single_request.screw_msg.is_pure_translation = true;
   planning_queue.push(single_request);
 
   size_t success_count = 0;
