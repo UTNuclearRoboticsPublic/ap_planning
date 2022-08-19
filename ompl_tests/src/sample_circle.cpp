@@ -490,7 +490,7 @@ class ScrewValidityChecker : public ob::StateValidityChecker {
       return false;
     }
 
-    if (error.norm() > 1e-4) {
+    if (error.norm() > 0.001) {
       // std::cout << "Invalid state: " << error.norm() << "\n";
       return false;
     }
@@ -519,7 +519,10 @@ ob::StateSamplerPtr allocMyStateSampler(const ob::StateSpace *state_space) {
 
 // TODO: document this: both start pose and the screw axis should be given in
 // the planning frame!!
-ompl::geometric::PathGeometric plan(const APPlanningRequest &req) {
+std::pair<ompl::geometric::PathGeometric, double> plan(
+    const APPlanningRequest &req,
+    const std::vector<std::vector<double>> &start_configs,
+    const std::vector<std::vector<double>> &goal_configs) {
   // construct the state space we are planning in
   auto screw_space(std::make_shared<ob::RealVectorStateSpace>());
   auto joint_space(std::make_shared<ob::RealVectorStateSpace>());
@@ -576,47 +579,29 @@ ompl::geometric::PathGeometric plan(const APPlanningRequest &req) {
       std::make_shared<ScrewValidityChecker>(ss.getSpaceInformation()));
 
   // create a number start states
-  bool found_ik;
-  std::vector<double> joint_values;
-  for (size_t i = 0; i < 20; ++i) {
-    found_ik = kinematic_state->setFromIK(joint_model_group, req.start_pose);
-    if (!found_ik) {
-      std::cout << "No initial IK found\n";
-    }
-
+  for (const auto &start_state : start_configs) {
     ob::ScopedState<> start(space);
     start[0] = 0;
-    kinematic_state->copyJointGroupPositions(joint_model_group, joint_values);
-    for (size_t i = 0; i < joint_values.size(); ++i) {
-      start[i + 1] = joint_values[i];
+    for (size_t i = 0; i < start_state.size(); ++i) {
+      start[i + 1] = start_state[i];
     }
     ss.addStartState(start);
   }
 
-  // Find goal pose (in planning frame)
-  affordance_primitives::ScrewAxis screw_axis;
-  screw_axis.setScrewAxis(transformed_screw);
-  const Eigen::Isometry3d planning_to_start = tf2::transformToEigen(tf_msg);
-  Eigen::Isometry3d goal_pose = planning_to_start * screw_axis.getTF(req.theta);
+  // // Find goal pose (in planning frame)
+  // affordance_primitives::ScrewAxis screw_axis;
+  // screw_axis.setScrewAxis(transformed_screw);
+  // const Eigen::Isometry3d planning_to_start = tf2::transformToEigen(tf_msg);
+  // Eigen::Isometry3d goal_pose = planning_to_start *
+  // screw_axis.getTF(req.theta);
 
   // create a number of goal states
   auto goal_obj = std::make_shared<ScrewGoal>(ss.getSpaceInformation());
-  for (size_t i = 0; i < 20; ++i) {
-    found_ik =
-        kinematic_state->setFromIK(joint_model_group, tf2::toMsg(goal_pose));
-    if (!found_ik) {
-      std::cout << "Goal: NO IK FOUND!\n";
-      continue;
-    }
-
+  for (const auto &goal_state : goal_configs) {
     ob::ScopedState<> goal(space);
     goal[0] = req.theta;
-
-    // std::cout << "Goal joint state:\n";
-    kinematic_state->copyJointGroupPositions(joint_model_group, joint_values);
-    for (size_t i = 0; i < joint_values.size(); ++i) {
-      goal[i + 1] = joint_values[i];
-      // std::cout << joint_values[i] << "\n";
+    for (size_t i = 0; i < goal_state.size(); ++i) {
+      goal[i + 1] = goal_state[i];
     }
     goal_obj->addState(goal);
   }
@@ -632,17 +617,37 @@ ompl::geometric::PathGeometric plan(const APPlanningRequest &req) {
   ss.getSpaceInformation()->setValidStateSamplerAllocator(allocScrewSampler);
 
   // attempt to solve the problem within ten seconds of planning time
-  ob::PlannerStatus solved = ss.solve(1.0);
+  ob::PlannerStatus solved = ss.solve(5.0);
   if (solved) {
     ss.simplifySolution(5.);
     std::cout << "Found solution:" << std::endl;
     // print the path to screen
     ss.getSolutionPath().print(std::cout);
-    return ss.getSolutionPath();
+    return std::make_pair(ss.getSolutionPath(),
+                          ss.getLastPlanComputationTime());
   } else {
     std::cout << "No solution found" << std::endl;
   }
-  return og::PathGeometric(ss.getSpaceInformation());
+  return std::make_pair(og::PathGeometric(ss.getSpaceInformation()), 0.0);
+}
+
+bool solutionIsValid(og::PathGeometric &solution,
+                     const APPlanningRequest &req) {
+  if (solution.getStateCount() < 1) {
+    return false;
+  }
+
+  const ob::CompoundStateSpace::StateType &compound_state =
+      *solution.getStates().back()->as<ob::CompoundStateSpace::StateType>();
+  const ob::RealVectorStateSpace::StateType &screw_state =
+      *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+
+  const double err = fabs(req.theta - screw_state[0]);
+  if (err > 0.01) {
+    return false;
+  }
+
+  return true;
 }
 
 trajectory_msgs::msg::JointTrajectoryPoint ompl_to_msg(const ob::State *state) {
@@ -675,6 +680,31 @@ void show_screw(const affordance_primitives::ScrewStamped &screw_msg,
   visual_tools.publishArrow(screw_msg.origin, end);
   visual_tools.trigger();
 };
+
+bool checkDuplicateState(const std::vector<std::vector<double>> &states,
+                         const std::vector<double> &new_state) {
+  for (const auto &state : states) {
+    if (state.size() != new_state.size()) {
+      return false;
+    }
+
+    Eigen::VectorXd eig_new_state(new_state.size());
+    Eigen::VectorXd eig_old_state(state.size());
+    for (size_t i = 0; i < state.size(); ++i) {
+      eig_new_state[i] = new_state.at(i);
+      eig_old_state[i] = state.at(i);
+    }
+
+    const auto error = eig_new_state - eig_old_state;
+    if (error.norm() < 1e-3) {
+      // std::cout << "Old state:\n"
+      //           << eig_old_state << "\nNew State:\n"
+      //           << eig_new_state << "\n";
+      return false;
+    }
+  }
+  return true;
+}
 
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
@@ -752,24 +782,84 @@ int main(int argc, char **argv) {
   single_request.screw_msg.origin = geometry_msgs::msg::Point();
   planning_queue.push(single_request);
 
+  size_t success_count = 0;
+
   // Plan each screw request
   while (planning_queue.size() > 0 && rclcpp::ok()) {
     auto req = planning_queue.front();
     planning_queue.pop();
+    success_count = 0;
     visual_tools.prompt(
         "Press 'next' in the RvizVisualToolsGui window to start the demo");
 
     show_screw(req.screw_msg, visual_tools);
 
-    std::cout << "\nUsing my sampler:" << std::endl;
-    bool found = false;
-    for (size_t i = 0; i < 5; ++i) {
-      auto solution = plan(req);
-      if (solution.getStateCount() < 1) {
-        continue;
-      } else {
-        found = true;
+    // generate start configs
+    std::vector<std::vector<double>> start_configs, goal_configs;
+    bool found_ik;
+    for (size_t i = 0; i < 10; ++i) {
+      std::vector<double> joint_values;
+      found_ik = kinematic_state->setFromIK(joint_model_group, req.start_pose);
+      if (found_ik) {
+        // check to see if duplicates?
+        kinematic_state->copyJointGroupPositions(joint_model_group,
+                                                 joint_values);
+
+        if (checkDuplicateState(start_configs, joint_values)) {
+          start_configs.push_back(joint_values);
+        }
       }
+      kinematic_state->setToDefaultValues();
+    }
+
+    // We need to transform the screw to be in the starting frame
+    geometry_msgs::msg::TransformStamped tf_msg;
+    tf_msg.header.frame_id = "panda_link0";
+    tf_msg.child_frame_id = "panda_link8";
+    tf_msg.transform.rotation = req.start_pose.orientation;
+    tf_msg.transform.translation.x = req.start_pose.position.x;
+    tf_msg.transform.translation.y = req.start_pose.position.y;
+    tf_msg.transform.translation.z = req.start_pose.position.z;
+    auto transformed_screw =
+        affordance_primitives::transformScrew(req.screw_msg, tf_msg);
+
+    // Find goal pose (in planning frame)
+    affordance_primitives::ScrewAxis screw_axis;
+    screw_axis.setScrewAxis(transformed_screw);
+    const Eigen::Isometry3d planning_to_start = tf2::transformToEigen(tf_msg);
+    Eigen::Isometry3d goal_pose =
+        planning_to_start * screw_axis.getTF(req.theta);
+
+    // generate goal configs
+    for (size_t i = 0; i < 10; ++i) {
+      std::vector<double> joint_values;
+      found_ik =
+          kinematic_state->setFromIK(joint_model_group, tf2::toMsg(goal_pose));
+      if (found_ik) {
+        // check to see if duplicates?
+        kinematic_state->copyJointGroupPositions(joint_model_group,
+                                                 joint_values);
+
+        if (checkDuplicateState(goal_configs, joint_values)) {
+          goal_configs.push_back(joint_values);
+        }
+      }
+      kinematic_state->setToDefaultValues();
+    }
+
+    double total_success_time = 0.0;
+    double max_found_time = 0.0;
+
+    std::cout << "\nUsing my sampler:" << std::endl;
+    for (size_t i = 0; i < 5; ++i) {
+      auto planner_out = plan(req, start_configs, goal_configs);
+      auto solution = planner_out.first;
+      if (!solutionIsValid(solution, req)) {
+        continue;
+      }
+      total_success_time += planner_out.second;
+      max_found_time = std::max(max_found_time, planner_out.second);
+      ++success_count;
       solution.interpolate();
 
       moveit_msgs::msg::DisplayTrajectory joint_traj;
@@ -799,11 +889,14 @@ int main(int argc, char **argv) {
       }
 
       visual_tools.publishTrajectoryPath(joint_traj);
-
-      if (found) {
-        break;
-      }
     }
+    RCLCPP_INFO_STREAM(
+        LOGGER, "Num success: " << success_count
+                                << "\nWith #start = " << start_configs.size()
+                                << "\n#end = " << goal_configs.size()
+                                << "\nAvg time = "
+                                << total_success_time / success_count
+                                << "\nMax found time = " << max_found_time);
   }
 
   rclcpp::shutdown();
