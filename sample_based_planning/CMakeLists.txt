@@ -9,9 +9,9 @@ endif()
 find_package(Boost REQUIRED system filesystem date_time thread serialization program_options)
 find_package(catkin REQUIRED COMPONENTS
   affordance_primitives
-  roscpp
   moveit_ros_planning_interface
   moveit_visual_tools
+  roscpp
   tf2_eigen
 )
 
@@ -34,6 +34,7 @@ catkin_package(
  CATKIN_DEPENDS
   affordance_primitives
   moveit_ros_planning_interface
+  roscpp
 #  DEPENDS system_lib
 )
 
@@ -64,6 +65,6 @@ target_link_libraries(sample_circle ${OMPL_LIBRARIES} ${catkin_LIBRARIES} ${Boos
 install(TARGETS sample_circle
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
-install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-)
+# install(DIRECTORY include/${PROJECT_NAME}/
+#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+# )

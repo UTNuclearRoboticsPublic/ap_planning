@@ -822,7 +822,6 @@ int main(int argc, char **argv) {
       std::vector<double> joint_values;
       found_ik = kinematic_state->setFromIK(joint_model_group, req.start_pose);
       if (found_ik) {
-        // check to see if duplicates?
         kinematic_state->copyJointGroupPositions(joint_model_group,
                                                  joint_values);
 
@@ -841,7 +840,6 @@ int main(int argc, char **argv) {
           goal_configs.push_back(joint_values);
         }
       }
-
       kinematic_state->setToRandomPositions();
     }
 

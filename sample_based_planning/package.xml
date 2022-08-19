@@ -11,10 +11,12 @@
 
   <depend>affordance_primitives</depend>
   <depend>ompl</depend>
-  <depend>rclcpp</depend>
   <depend>moveit_ros_planning_interface</depend>
   <depend>moveit_visual_tools</depend>
+  <depend>roscpp</depend>
   <depend>tf2_eigen</depend>
+
+  <exec_depend>panda_moveit_config</exec_depend>
 
   <export>
     <build_type>catkin</build_type>
