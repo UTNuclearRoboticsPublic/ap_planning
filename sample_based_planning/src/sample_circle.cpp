@@ -32,72 +32,6 @@ namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
 namespace ap_planning {
-
-// TODO: probably move this function to affordance primitives
-affordance_primitive_msgs::ScrewStamped strToScrewMsg(const std::string input) {
-  affordance_primitive_msgs::ScrewStamped output;
-
-  std::stringstream ss(input);
-  std::vector<std::string> lines;
-  std::string delimiter = ": ";
-
-  for (std::string line; std::getline(ss, line, '\n');) {
-    line.erase(0, line.find(delimiter) + delimiter.length());
-    lines.push_back(line);
-  }
-
-  output.header.frame_id = lines.at(1);
-  output.origin.x = std::stod(lines.at(2));
-  output.origin.y = std::stod(lines.at(3));
-  output.origin.z = std::stod(lines.at(4));
-  output.axis.x = std::stod(lines.at(5));
-  output.axis.y = std::stod(lines.at(6));
-  output.axis.z = std::stod(lines.at(7));
-
-  output.is_pure_translation = lines.at(8) == "Infinity";
-  if (!output.is_pure_translation) {
-    output.pitch = std::stod(lines.at(8));
-  }
-
-  return output;
-}
-
-geometry_msgs::Pose strToPoseMsg(const std::string input) {
-  geometry_msgs::Pose output;
-
-  std::stringstream ss(input);
-  std::vector<std::string> lines;
-  std::string delimiter = ": ";
-
-  for (std::string line; std::getline(ss, line, '\n');) {
-    line.erase(0, line.find(delimiter) + delimiter.length());
-    lines.push_back(line);
-  }
-
-  output.position.x = std::stod(lines.at(0));
-  output.position.y = std::stod(lines.at(1));
-  output.position.z = std::stod(lines.at(2));
-  output.orientation.x = std::stod(lines.at(3));
-  output.orientation.y = std::stod(lines.at(4));
-  output.orientation.z = std::stod(lines.at(5));
-  output.orientation.w = std::stod(lines.at(6));
-
-  return output;
-}
-
-std::string poseMsgToStr(const geometry_msgs::Pose &pose_msg) {
-  std::stringstream ss;
-  ss << "Position X: " << pose_msg.position.x
-     << "\nPosition Y: " << pose_msg.position.y
-     << "\nPosition Z: " << pose_msg.position.z
-     << "\nQuaternion X: " << pose_msg.orientation.x
-     << "\nQuaternion Y: " << pose_msg.orientation.y
-     << "\nQuaternion Z: " << pose_msg.orientation.z
-     << "\nQuaternion W: " << pose_msg.orientation.w;
-
-  return ss.str();
-}
-
 ScrewGoal::ScrewGoal(const ob::SpaceInformationPtr si)
     : GoalStates(si), screw_bounds_(1) {
   ob::CompoundStateSpace *compound_space =
@@ -135,8 +69,10 @@ ScrewSampler::ScrewSampler(const ob::SpaceInformation *si)
   si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
   si->getStateSpace()->params().getParam("pose_param", pose_msg_string);
 
-  screw_axis_.setScrewAxis(strToScrewMsg(screw_msg_string));
-  tf2::fromMsg(strToPoseMsg(pose_msg_string), start_pose_);
+  screw_axis_.setScrewAxis(
+      *affordance_primitives::strToScrewMsg(screw_msg_string));
+  tf2::fromMsg(affordance_primitives::strToPose(pose_msg_string)->pose,
+               start_pose_);
 
   ob::CompoundStateSpace *compound_space =
       si_->getStateSpace()->as<ob::CompoundStateSpace>();
@@ -227,8 +163,10 @@ MyStateSampler::MyStateSampler(const ob::StateSpace *state_space)
   state_space->params().getParam("screw_param", screw_msg_string);
   state_space->params().getParam("pose_param", pose_msg_string);
 
-  screw_axis_.setScrewAxis(strToScrewMsg(screw_msg_string));
-  tf2::fromMsg(strToPoseMsg(pose_msg_string), start_pose_);
+  screw_axis_.setScrewAxis(
+      *affordance_primitives::strToScrewMsg(screw_msg_string));
+  tf2::fromMsg(affordance_primitives::strToPose(pose_msg_string)->pose,
+               start_pose_);
 }
 
 void MyStateSampler::sample(ob::State *state,
@@ -354,8 +292,10 @@ ScrewValidityChecker::ScrewValidityChecker(const ob::SpaceInformationPtr &si)
   std::string screw_msg_string, pose_msg_string;
   si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
   si->getStateSpace()->params().getParam("pose_param", pose_msg_string);
-  screw_axis_.setScrewAxis(strToScrewMsg(screw_msg_string));
-  tf2::fromMsg(strToPoseMsg(pose_msg_string), start_pose_);
+  screw_axis_.setScrewAxis(
+      *affordance_primitives::strToScrewMsg(screw_msg_string));
+  tf2::fromMsg(affordance_primitives::strToPose(pose_msg_string)->pose,
+               start_pose_);
 
   ob::CompoundStateSpace *compound_space =
       si_->getStateSpace()->as<ob::CompoundStateSpace>();
@@ -471,10 +411,10 @@ std::pair<ompl::geometric::PathGeometric, double> plan(
   geometry_msgs::TransformStamped tf_msg;
   tf_msg.header.frame_id = "panda_link0";
   tf_msg.child_frame_id = "panda_link8";
-  tf_msg.transform.rotation = req.start_pose.orientation;
-  tf_msg.transform.translation.x = req.start_pose.position.x;
-  tf_msg.transform.translation.y = req.start_pose.position.y;
-  tf_msg.transform.translation.z = req.start_pose.position.z;
+  tf_msg.transform.rotation = req.start_pose.pose.orientation;
+  tf_msg.transform.translation.x = req.start_pose.pose.position.x;
+  tf_msg.transform.translation.y = req.start_pose.pose.position.y;
+  tf_msg.transform.translation.z = req.start_pose.pose.position.z;
   auto transformed_screw =
       affordance_primitives::transformScrew(req.screw_msg, tf_msg);
 
@@ -489,7 +429,7 @@ std::pair<ompl::geometric::PathGeometric, double> plan(
 
   // Add starting pose
   auto pose_param = std::make_shared<ap_planning::PoseParam>("pose_param");
-  pose_param->setValue(ap_planning::poseMsgToStr(req.start_pose));
+  pose_param->setValue(affordance_primitives::poseToStr(req.start_pose));
   space->params().add(pose_param);
 
   space->setStateSamplerAllocator(ap_planning::allocMyStateSampler);
@@ -677,14 +617,14 @@ int main(int argc, char **argv) {
   single_request.screw_msg.header.frame_id = "panda_link0";
 
   // For now, all requests start at same point
-  single_request.start_pose.position.x = 0.5;
-  single_request.start_pose.position.z = 0.3;
-  single_request.start_pose.orientation.x = 1.0;
-  single_request.start_pose.orientation.w = 0;
+  single_request.start_pose.pose.position.x = 0.5;
+  single_request.start_pose.pose.position.z = 0.3;
+  single_request.start_pose.pose.orientation.x = 1.0;
+  single_request.start_pose.pose.orientation.w = 0;
 
   // Add some test cases
   single_request.theta = 0.25 * M_PI;
-  single_request.screw_msg.origin = single_request.start_pose.position;
+  single_request.screw_msg.origin = single_request.start_pose.pose.position;
   single_request.screw_msg.axis.x = 1;
   planning_queue.push(single_request);
 
@@ -704,7 +644,7 @@ int main(int argc, char **argv) {
   single_request.screw_msg.origin = geometry_msgs::Point();
   planning_queue.push(single_request);
 
-  single_request.screw_msg.origin = single_request.start_pose.position;
+  single_request.screw_msg.origin = single_request.start_pose.pose.position;
   single_request.screw_msg.axis.x = -1;
   single_request.screw_msg.axis.z = 1;
   single_request.screw_msg.is_pure_translation = true;
@@ -726,10 +666,10 @@ int main(int argc, char **argv) {
     geometry_msgs::TransformStamped tf_msg;
     tf_msg.header.frame_id = "panda_link0";
     tf_msg.child_frame_id = "panda_link8";
-    tf_msg.transform.rotation = req.start_pose.orientation;
-    tf_msg.transform.translation.x = req.start_pose.position.x;
-    tf_msg.transform.translation.y = req.start_pose.position.y;
-    tf_msg.transform.translation.z = req.start_pose.position.z;
+    tf_msg.transform.rotation = req.start_pose.pose.orientation;
+    tf_msg.transform.translation.x = req.start_pose.pose.position.x;
+    tf_msg.transform.translation.y = req.start_pose.pose.position.y;
+    tf_msg.transform.translation.z = req.start_pose.pose.position.z;
     auto transformed_screw =
         affordance_primitives::transformScrew(req.screw_msg, tf_msg);
 
@@ -746,7 +686,8 @@ int main(int argc, char **argv) {
     bool found_ik;
     for (size_t i = 0; i < 5; ++i) {
       std::vector<double> joint_values;
-      found_ik = kinematic_state->setFromIK(joint_model_group, req.start_pose);
+      found_ik =
+          kinematic_state->setFromIK(joint_model_group, req.start_pose.pose);
       if (found_ik) {
         kinematic_state->copyJointGroupPositions(joint_model_group,
                                                  joint_values);

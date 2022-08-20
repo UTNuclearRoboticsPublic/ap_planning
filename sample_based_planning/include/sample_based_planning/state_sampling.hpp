@@ -71,6 +71,7 @@ class ScrewSampler : public ob::ValidStateSampler {
  protected:
   ompl::RNG rng_;
   ob::RealVectorBounds screw_bounds_;
+  // TODO: make kinematic model static so less reading params
   moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
@@ -91,6 +92,7 @@ class MyStateSampler : public ob::StateSampler {
 
  protected:
   ompl::RNG rng_;
+  // TODO: make kinematic model static so less reading params
   moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;

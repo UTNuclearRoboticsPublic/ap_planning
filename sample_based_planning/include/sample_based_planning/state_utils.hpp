@@ -51,17 +51,10 @@ namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
 namespace ap_planning {
-
-// TODO: probably move this function to affordance primitives
-affordance_primitive_msgs::ScrewStamped strToScrewMsg(const std::string input);
-
-geometry_msgs::Pose strToPoseMsg(const std::string input);
-std::string poseMsgToStr(const geometry_msgs::Pose &pose_msg);
-
 struct APPlanningRequest {
   affordance_primitive_msgs::ScrewStamped screw_msg;
   double theta;
-  geometry_msgs::Pose start_pose;
+  geometry_msgs::PoseStamped start_pose;
 };
 
 class ScrewParam : public ob::GenericParam {
@@ -73,13 +66,13 @@ class ScrewParam : public ob::GenericParam {
   }
 
   bool setValue(const std::string &value) {
-    screw_msg_ = strToScrewMsg(value);
-    return true;
+    auto decoded = affordance_primitives::strToScrewMsg(value);
+    if (decoded) {
+      screw_msg_ = *decoded;
+      return true;
+    }
+    return false;
   }
-
-  affordance_primitive_msgs::ScrewStamped getScrew() const {
-    return screw_msg_;
-  };
 
  protected:
   affordance_primitive_msgs::ScrewStamped screw_msg_;
@@ -89,17 +82,21 @@ class PoseParam : public ob::GenericParam {
  public:
   PoseParam(std::string name) : GenericParam(name) {}
 
-  std::string getValue() const override { return poseMsgToStr(pose_msg_); }
-
-  bool setValue(const std::string &value) {
-    pose_msg_ = strToPoseMsg(value);
-    return true;
+  std::string getValue() const override {
+    return affordance_primitives::poseToStr(pose_msg_);
   }
 
-  geometry_msgs::Pose getPose() const { return pose_msg_; };
+  bool setValue(const std::string &value) {
+    auto decoded = affordance_primitives::strToPose(value);
+    if (decoded) {
+      pose_msg_ = *decoded;
+      return true;
+    }
+    return false;
+  }
 
  protected:
-  geometry_msgs::Pose pose_msg_;
+  geometry_msgs::PoseStamped pose_msg_;
 };
 
 class ScrewGoal : public ob::GoalStates {
@@ -122,6 +119,7 @@ class ScrewValidityChecker : public ob::StateValidityChecker {
  protected:
   ob::RealVectorBounds robot_bounds_;
   ob::RealVectorBounds screw_bounds_;
+  // TODO: make kinematic model static so less reading params
   moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
