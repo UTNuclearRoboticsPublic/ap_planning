@@ -57,16 +57,19 @@ namespace og = ompl::geometric;
 
 namespace ap_planning {
 
-ob::ValidStateSamplerPtr allocScrewSampler(const ob::SpaceInformation *si);
+ob::ValidStateSamplerPtr allocScrewValidSampler(const ob::SpaceInformation *si);
 
-class ScrewSampler : public ob::ValidStateSampler {
+/**
+ * Creates valid samples in the screw state space
+ */
+class ScrewValidSampler : public ob::ValidStateSampler {
  public:
-  ScrewSampler(const ob::SpaceInformation *si);
+  ScrewValidSampler(const ob::SpaceInformation *si);
 
   bool sample(ob::State *state) override;
   bool sampleNear(ob::State * /*state*/, const ob::State * /*near*/,
                   const double /*distance*/) override {
-    throw ompl::Exception("ScrewSampler::sampleNear", "not implemented");
+    throw ompl::Exception("ScrewValidSampler::sampleNear", "not implemented");
     return false;
   }
 
@@ -81,11 +84,15 @@ class ScrewSampler : public ob::ValidStateSampler {
   Eigen::Isometry3d start_pose_;
 };
 
-ob::StateSamplerPtr allocMyStateSampler(const ob::StateSpace *state_space);
+ob::StateSamplerPtr allocScrewSampler(const ob::StateSpace *state_space);
 
-class MyStateSampler : public ob::StateSampler {
+/**
+ * Draws random screw space samples. These are guaranteed to be valid (i.e the
+ * robot state places the EE link on the required screw)
+ */
+class ScrewSampler : public ob::StateSampler {
  public:
-  MyStateSampler(const ob::StateSpace *state_space);
+  ScrewSampler(const ob::StateSpace *state_space);
 
   void sample(ob::State *state, const std::vector<double> screw_theta);
   void sampleUniform(ob::State *state) override;

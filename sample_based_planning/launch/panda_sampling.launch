@@ -5,7 +5,7 @@
 
   <include file="$(find panda_moveit_config)/launch/demo.launch" />
 
-  <node name="panda_sampling" pkg="sample_based_planning" type="sample_circle" respawn="false" output="screen">
+  <node name="panda_sampling" pkg="sample_based_planning" type="panda_demo" respawn="false" output="screen">
     <rosparam command="load" file="$(find panda_moveit_config)/config/kinematics.yaml"/>
   </node>
 </launch>

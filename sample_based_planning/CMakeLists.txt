@@ -54,29 +54,16 @@ include_directories(SYSTEM
                     ${OMPL_INCLUDE_DIRS})
 
 add_library(${PROJECT_NAME}
-  src/sample_circle.cpp
   src/state_utils.cpp
   src/state_sampling.cpp
 )
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME} ${OMPL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
-# add_executable(sphere_constraint src/constrained_sphere.cpp)
-# ament_target_dependencies(sphere_constraint OMPL Boost)
+add_executable(panda_demo src/panda_demo.cpp)
+target_link_libraries(panda_demo ${PROJECT_NAME})
 
-# add_executable(circle_constraint src/constrained_circle.cpp)
-# ament_target_dependencies(circle_constraint OMPL Boost)
-
-# add_executable(screw_constraint src/constrained_screw.cpp)
-# ament_target_dependencies(screw_constraint affordance_primitives OMPL Boost)
-
-add_executable(sample_circle src/sample_circle.cpp)
-target_link_libraries(sample_circle ${PROJECT_NAME})
-
-# add_executable(state_sampling_demo src/state_sampling_demo.cpp)
-# target_link_libraries(state_sampling_demo ${OMPL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
-
-install(TARGETS ${PROJECT_NAME} sample_circle
+install(TARGETS ${PROJECT_NAME} panda_demo
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY include/${PROJECT_NAME}/

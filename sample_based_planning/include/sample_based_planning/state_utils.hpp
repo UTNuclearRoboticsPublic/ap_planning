@@ -48,19 +48,26 @@
 #include <moveit/robot_state/robot_state.h>
 
 #include <affordance_primitive_msgs/ScrewStamped.h>
-#include <affordance_primitives/screw_model/screw_axis.hpp>
 #include <tf2_eigen/tf2_eigen.h>
+#include <affordance_primitives/screw_model/screw_axis.hpp>
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
 namespace ap_planning {
+/**
+ * A struct for holding all the information needed to make an AP planning
+ * request
+ */
 struct APPlanningRequest {
   affordance_primitive_msgs::ScrewStamped screw_msg;
   double theta;
   geometry_msgs::PoseStamped start_pose;
 };
 
+/**
+ * Allows passing screw parameters into the planning instance
+ */
 class ScrewParam : public ob::GenericParam {
  public:
   ScrewParam(std::string name) : GenericParam(name) {}
@@ -82,6 +89,9 @@ class ScrewParam : public ob::GenericParam {
   affordance_primitive_msgs::ScrewStamped screw_msg_;
 };
 
+/**
+ * Allows passing pose parameters into the planning instance
+ */
 class PoseParam : public ob::GenericParam {
  public:
   PoseParam(std::string name) : GenericParam(name) {}
@@ -103,16 +113,28 @@ class PoseParam : public ob::GenericParam {
   geometry_msgs::PoseStamped pose_msg_;
 };
 
+/**
+ * Holds a number of goal poses and allows checking if a state satisfies the
+ * goal
+ */
 class ScrewGoal : public ob::GoalStates {
  public:
   ScrewGoal(const ob::SpaceInformationPtr si);
 
+  /**
+   * Returns the distance of the state to the goal. This is simple, and only
+   * uses the screw space (independent of robot joints)
+   */
   double distanceGoal(const ob::State *state) const override;
 
  protected:
   ob::RealVectorBounds screw_bounds_;
 };
 
+/**
+ * Checks a state to make sure it is valid. That mostly means checking to make
+ * sure the robot state places the EE link on the required screw axis
+ */
 // TODO: this must be thread safe, is it?
 class ScrewValidityChecker : public ob::StateValidityChecker {
  public:

@@ -88,7 +88,7 @@ std::pair<ompl::geometric::PathGeometric, double> plan(
   pose_param->setValue(affordance_primitives::poseToStr(req.start_pose));
   space->params().add(pose_param);
 
-  space->setStateSamplerAllocator(ap_planning::allocMyStateSampler);
+  space->setStateSamplerAllocator(ap_planning::allocScrewSampler);
   // TODO: lock space? space.lock()
   og::SimpleSetup ss(space);
 
@@ -135,7 +135,7 @@ std::pair<ompl::geometric::PathGeometric, double> plan(
   ss.setPlanner(planner);
 
   ss.getSpaceInformation()->setValidStateSamplerAllocator(
-      ap_planning::allocScrewSampler);
+      ap_planning::allocScrewValidSampler);
 
   // attempt to solve the problem within ten seconds of planning time
   ob::PlannerStatus solved = ss.solve(5.0);
