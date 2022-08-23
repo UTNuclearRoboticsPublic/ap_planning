@@ -1,20 +1,26 @@
+#include <moveit/robot_model_loader/robot_model_loader.h>
 #include <sample_based_planning/state_sampling.hpp>
 
 namespace ap_planning {
 
 ScrewValidSampler::ScrewValidSampler(const ob::SpaceInformation *si)
     : ValidStateSampler(si), screw_bounds_(1) {
-  name_ = "my sampler";
+  name_ = "screw_valid_sampler";
 
-  // TODO: robot description and move group name need to be parameters
-  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
+  // Get robot description and move group parameters
+  std::string rd_string, mg_string;
+  si->getStateSpace()->params().getParam("robot_description", rd_string);
+  si->getStateSpace()->params().getParam("move_group", mg_string);
+
+  // Load robot
+  robot_model_loader::RobotModelLoader robot_model_loader(rd_string);
   kinematic_model_ = robot_model_loader.getModel();
   kinematic_state_ =
       std::make_shared<moveit::core::RobotState>(kinematic_model_);
   kinematic_state_->setToDefaultValues();
 
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
-      *kinematic_model_->getJointModelGroup("panda_arm"));
+      *kinematic_model_->getJointModelGroup(mg_string));
 
   std::string screw_msg_string, pose_msg_string;
   si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
@@ -77,15 +83,19 @@ ob::ValidStateSamplerPtr allocScrewValidSampler(
 
 ScrewSampler::ScrewSampler(const ob::StateSpace *state_space)
     : StateSampler(state_space), screw_bounds_(state_space->getDimension()) {
-  // TODO: robot description and move group name need to be parameters
-  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
+  // Get robot description and move group parameters
+  std::string rd_string, mg_string;
+  state_space->params().getParam("robot_description", rd_string);
+  state_space->params().getParam("move_group", mg_string);
+
+  robot_model_loader::RobotModelLoader robot_model_loader(rd_string);
   kinematic_model_ = robot_model_loader.getModel();
   kinematic_state_ =
       std::make_shared<moveit::core::RobotState>(kinematic_model_);
   kinematic_state_->setToDefaultValues();
 
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
-      *kinematic_model_->getJointModelGroup("panda_arm"));
+      *kinematic_model_->getJointModelGroup(mg_string));
 
   auto compound_space = state_space->as<ob::CompoundStateSpace>();
   screw_bounds_ = compound_space->getSubspace(0)

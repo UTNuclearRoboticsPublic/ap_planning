@@ -32,27 +32,16 @@
 
 #pragma once
 
-// TODO: clean these up
-#include <ompl/base/SpaceInformation.h>
-#include <ompl/base/goals/GoalStates.h>
-#include <ompl/base/samplers/ObstacleBasedValidStateSampler.h>
-#include <ompl/base/spaces/SE3StateSpace.h>
-#include <ompl/config.h>
-#include <ompl/geometric/SimpleSetup.h>
-#include <ompl/geometric/planners/prm/PRM.h>
-#include <ompl/geometric/planners/prm/PRMstar.h>
-#include <ompl/geometric/planners/rrt/RRT.h>
-#include <ompl/geometric/planners/rrt/RRTConnect.h>
-
+#include <affordance_primitive_msgs/ScrewStamped.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_state/robot_state.h>
-
-#include <affordance_primitive_msgs/ScrewStamped.h>
+#include <ompl/base/SpaceInformation.h>
+#include <ompl/base/goals/GoalStates.h>
+#include <ompl/base/spaces/RealVectorStateSpace.h>
 #include <tf2_eigen/tf2_eigen.h>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
 
 namespace ob = ompl::base;
-namespace og = ompl::geometric;
 
 namespace ap_planning {
 /**
@@ -111,6 +100,24 @@ class PoseParam : public ob::GenericParam {
 
  protected:
   geometry_msgs::PoseStamped pose_msg_;
+};
+
+/**
+ * Allows passing string parameters into the planning instance
+ */
+class StringParam : public ob::GenericParam {
+ public:
+  StringParam(std::string name) : GenericParam(name) {}
+
+  std::string getValue() const override { return value_; }
+
+  bool setValue(const std::string &value) {
+    value_ = value;
+    return true;
+  }
+
+ protected:
+  std::string value_;
 };
 
 /**

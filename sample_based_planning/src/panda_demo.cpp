@@ -43,7 +43,6 @@ std::pair<ompl::geometric::PathGeometric, double> plan(
 
   screw_space->addDimension(0, req.theta);
 
-  // TODO: robot description and move group name need to be parameters
   robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
   moveit::core::RobotModelPtr kinematic_model = robot_model_loader.getModel();
 
@@ -88,8 +87,18 @@ std::pair<ompl::geometric::PathGeometric, double> plan(
   pose_param->setValue(affordance_primitives::poseToStr(req.start_pose));
   space->params().add(pose_param);
 
+  // Add robot description and move group parameters
+  auto robot_description_param =
+      std::make_shared<ap_planning::StringParam>("robot_description");
+  robot_description_param->setValue("robot_description");
+  auto move_group_param =
+      std::make_shared<ap_planning::StringParam>("move_group");
+  move_group_param->setValue("panda_arm");
+  space->params().add(robot_description_param);
+  space->params().add(move_group_param);
+
   space->setStateSamplerAllocator(ap_planning::allocScrewSampler);
-  // TODO: lock space? space.lock()
+  space->as<ob::CompoundStateSpace>()->lock();
   og::SimpleSetup ss(space);
 
   // set state validity checking for this space
