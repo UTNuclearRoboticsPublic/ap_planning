@@ -33,10 +33,11 @@ namespace og = ompl::geometric;
 
 // TODO: document this: both start pose and the screw axis should be given in
 // the planning frame!!
-std::pair<ompl::geometric::PathGeometric, double> plan(
-    const ap_planning::APPlanningRequest &req,
-    const std::vector<std::vector<double>> &start_configs,
-    const std::vector<std::vector<double>> &goal_configs) {
+std::pair<ompl::geometric::PathGeometric,
+          std::pair<ob::SpaceInformationPtr, double>>
+plan(const ap_planning::APPlanningRequest &req,
+     const std::vector<std::vector<double>> &start_configs,
+     const std::vector<std::vector<double>> &goal_configs) {
   // construct the state space we are planning in
   auto screw_space(std::make_shared<ob::RealVectorStateSpace>());
   auto joint_space(std::make_shared<ob::RealVectorStateSpace>());
@@ -154,28 +155,38 @@ std::pair<ompl::geometric::PathGeometric, double> plan(
     // print the path to screen
     ss.getSolutionPath().print(std::cout);
     return std::make_pair(ss.getSolutionPath(),
-                          ss.getLastPlanComputationTime());
+                          std::make_pair(ss.getSpaceInformation(),
+                                         ss.getLastPlanComputationTime()));
   } else {
     std::cout << "No solution found" << std::endl;
   }
-  return std::make_pair(og::PathGeometric(ss.getSpaceInformation()), 0.0);
+  return std::make_pair(og::PathGeometric(ss.getSpaceInformation()),
+                        std::make_pair(ss.getSpaceInformation(), 0.0));
 }
 
-// TODO: check waypoints for validity
 bool solutionIsValid(og::PathGeometric &solution,
-                     const ap_planning::APPlanningRequest &req) {
+                     const ap_planning::APPlanningRequest &req,
+                     const ob::SpaceInformationPtr si) {
   if (solution.getStateCount() < 1) {
     return false;
   }
 
+  // Check last waypoint is close to goal
   const ob::CompoundStateSpace::StateType &compound_state =
       *solution.getStates().back()->as<ob::CompoundStateSpace::StateType>();
   const ob::RealVectorStateSpace::StateType &screw_state =
       *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
-
   const double err = fabs(req.theta - screw_state[0]);
   if (err > 0.01) {
     return false;
+  }
+
+  // Go through states and make sure each one is valid
+  size_t num_waypoints = solution.getStateCount();
+  for (size_t i = 0; i < num_waypoints; ++i) {
+    if (!si->isValid(solution.getState(i))) {
+      return false;
+    }
   }
 
   return true;
@@ -395,18 +406,23 @@ int main(int argc, char **argv) {
 
     double total_success_time = 0.0;
     double max_found_time = 0.0;
+    size_t num_post_rejections = 0;
 
     std::cout << "\nUsing my sampler:" << std::endl;
     for (size_t i = 0; i < 5; ++i) {
       auto planner_out = plan(req, start_configs, goal_configs);
       auto solution = planner_out.first;
-      if (!solutionIsValid(solution, req)) {
+      if (!solutionIsValid(solution, req, planner_out.second.first)) {
         continue;
       }
-      total_success_time += planner_out.second;
-      max_found_time = std::max(max_found_time, planner_out.second);
+      total_success_time += planner_out.second.second;
+      max_found_time = std::max(max_found_time, planner_out.second.second);
       ++success_count;
       solution.interpolate();
+      if (!solutionIsValid(solution, req, planner_out.second.first)) {
+        ++num_post_rejections;
+        continue;
+      }
 
       moveit_msgs::DisplayTrajectory joint_traj;
       joint_traj.model_id = "panda";
@@ -438,6 +454,8 @@ int main(int argc, char **argv) {
     }
     ROS_INFO_STREAM("Num success: "
                     << success_count
+                    << " (with num post reject = "
+                    << num_post_rejections << ")"
                     << "\nWith #start = " << start_configs.size()
                     << "\n#end = " << goal_configs.size()
                     << "\nAvg time = " << total_success_time / success_count
