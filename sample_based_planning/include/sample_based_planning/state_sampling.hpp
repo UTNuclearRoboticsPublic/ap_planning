@@ -57,6 +57,8 @@ namespace og = ompl::geometric;
 
 namespace ap_planning {
 
+ob::ValidStateSamplerPtr allocScrewSampler(const ob::SpaceInformation *si);
+
 class ScrewSampler : public ob::ValidStateSampler {
  public:
   ScrewSampler(const ob::SpaceInformation *si);
@@ -78,6 +80,8 @@ class ScrewSampler : public ob::ValidStateSampler {
   affordance_primitives::ScrewAxis screw_axis_;
   Eigen::Isometry3d start_pose_;
 };
+
+ob::StateSamplerPtr allocMyStateSampler(const ob::StateSpace *state_space);
 
 class MyStateSampler : public ob::StateSampler {
  public:

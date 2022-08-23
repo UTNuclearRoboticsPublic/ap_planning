@@ -44,7 +44,11 @@
 #include <ompl/geometric/planners/rrt/RRT.h>
 #include <ompl/geometric/planners/rrt/RRTConnect.h>
 
+#include <moveit/robot_model/robot_model.h>
+#include <moveit/robot_state/robot_state.h>
+
 #include <affordance_primitive_msgs/ScrewStamped.h>
+#include <affordance_primitives/screw_model/screw_axis.hpp>
 #include <tf2_eigen/tf2_eigen.h>
 
 namespace ob = ompl::base;
