@@ -454,8 +454,7 @@ int main(int argc, char **argv) {
     }
     ROS_INFO_STREAM("Num success: "
                     << success_count
-                    << " (with num post reject = "
-                    << num_post_rejections << ")"
+                    << " (with num post reject = " << num_post_rejections << ")"
                     << "\nWith #start = " << start_configs.size()
                     << "\n#end = " << goal_configs.size()
                     << "\nAvg time = " << total_success_time / success_count

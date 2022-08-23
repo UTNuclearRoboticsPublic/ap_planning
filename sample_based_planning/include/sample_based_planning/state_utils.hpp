@@ -39,6 +39,7 @@
 #include <ompl/base/goals/GoalStates.h>
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 #include <tf2_eigen/tf2_eigen.h>
+#include <trajectory_msgs/JointTrajectory.h>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
 
 namespace ob = ompl::base;
@@ -52,6 +53,12 @@ struct APPlanningRequest {
   affordance_primitive_msgs::ScrewStamped screw_msg;
   double theta;
   geometry_msgs::PoseStamped start_pose;
+};
+
+struct APPlanningResponse {
+  trajectory_msgs::JointTrajectory joint_trajectory;
+  double percentage_complete;
+  bool trajectory_is_valid;
 };
 
 /**
