@@ -49,6 +49,8 @@ namespace ap_planning {
  * A struct for holding all the information needed to make an AP planning
  * request
  */
+// TODO: document this: both start pose and the screw axis should be given in
+// the planning frame!!
 struct APPlanningRequest {
   affordance_primitive_msgs::ScrewStamped screw_msg;
   double theta;

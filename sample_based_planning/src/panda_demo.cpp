@@ -33,139 +33,6 @@
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
-// TODO: document this: both start pose and the screw axis should be given in
-// the planning frame!!
-std::pair<ompl::geometric::PathGeometric,
-          std::pair<ob::SpaceInformationPtr, double>>
-plan(const ap_planning::APPlanningRequest &req,
-     const std::vector<std::vector<double>> &start_configs,
-     const std::vector<std::vector<double>> &goal_configs) {
-  // construct the state space we are planning in
-  auto screw_space(std::make_shared<ob::RealVectorStateSpace>());
-  auto joint_space(std::make_shared<ob::RealVectorStateSpace>());
-
-  screw_space->addDimension(0, req.theta);
-
-  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
-  moveit::core::RobotModelPtr kinematic_model = robot_model_loader.getModel();
-
-  moveit::core::RobotStatePtr kinematic_state(
-      new moveit::core::RobotState(kinematic_model));
-  kinematic_state->setToDefaultValues();
-  const moveit::core::JointModelGroup *joint_model_group =
-      kinematic_model->getJointModelGroup("panda_arm");
-
-  // Go through joint group and add bounds for each joint
-  for (const moveit::core::JointModel *joint :
-       joint_model_group->getActiveJointModels()) {
-    const auto &bounds = joint->getVariableBounds(joint->getName());
-    // TODO: add case for non-bounded joint?
-    if (bounds.position_bounded_) {
-      joint_space->addDimension(bounds.min_position_, bounds.max_position_);
-    }
-  }
-
-  // We need to transform the screw to be in the starting frame
-  geometry_msgs::TransformStamped tf_msg;
-  tf_msg.header.frame_id = "panda_link0";
-  tf_msg.child_frame_id = "panda_link8";
-  tf_msg.transform.rotation = req.start_pose.pose.orientation;
-  tf_msg.transform.translation.x = req.start_pose.pose.position.x;
-  tf_msg.transform.translation.y = req.start_pose.pose.position.y;
-  tf_msg.transform.translation.z = req.start_pose.pose.position.z;
-  auto transformed_screw =
-      affordance_primitives::transformScrew(req.screw_msg, tf_msg);
-
-  // define a simple setup class
-  ompl::base::StateSpacePtr space = screw_space + joint_space;
-
-  // Add screw param (from starting pose screw)
-  auto screw_param = std::make_shared<ap_planning::ScrewParam>("screw_param");
-  screw_param->setValue(
-      affordance_primitives::screwMsgToStr(transformed_screw));
-  space->params().add(screw_param);
-
-  // Add starting pose
-  auto pose_param = std::make_shared<ap_planning::PoseParam>("pose_param");
-  pose_param->setValue(affordance_primitives::poseToStr(req.start_pose));
-  space->params().add(pose_param);
-
-  // Add robot description and move group parameters
-  auto robot_description_param =
-      std::make_shared<ap_planning::StringParam>("robot_description");
-  robot_description_param->setValue("robot_description");
-  auto move_group_param =
-      std::make_shared<ap_planning::StringParam>("move_group");
-  move_group_param->setValue("panda_arm");
-  space->params().add(robot_description_param);
-  space->params().add(move_group_param);
-
-  space->setStateSamplerAllocator(ap_planning::allocScrewSampler);
-  space->as<ob::CompoundStateSpace>()->lock();
-  og::SimpleSetup ss(space);
-
-  // set state validity checking for this space
-  ss.setStateValidityChecker(
-      std::make_shared<ap_planning::ScrewValidityChecker>(
-          ss.getSpaceInformation()));
-
-  // create a number start states
-  for (const auto &start_state : start_configs) {
-    ob::ScopedState<> start(space);
-    start[0] = 0;
-    for (size_t i = 0; i < start_state.size(); ++i) {
-      start[i + 1] = start_state[i];
-    }
-    ss.addStartState(start);
-  }
-
-  // // Find goal pose (in planning frame)
-  // affordance_primitives::ScrewAxis screw_axis;
-  // screw_axis.setScrewAxis(transformed_screw);
-  // const Eigen::Isometry3d planning_to_start = tf2::transformToEigen(tf_msg);
-  // Eigen::Isometry3d goal_pose = planning_to_start *
-  // screw_axis.getTF(req.theta);
-
-  // create a number of goal states
-  auto goal_obj =
-      std::make_shared<ap_planning::ScrewGoal>(ss.getSpaceInformation());
-  for (const auto &goal_state : goal_configs) {
-    ob::ScopedState<> goal(space);
-    goal[0] = req.theta;
-    for (size_t i = 0; i < goal_state.size(); ++i) {
-      goal[i + 1] = goal_state[i];
-    }
-    goal_obj->addState(goal);
-  }
-
-  // set the start and goal states
-  ss.setGoal(goal_obj);
-
-  // create a planner for the defined space
-  auto planner(std::make_shared<og::PRM>(ss.getSpaceInformation()));
-  // planner->setRange(0.25);
-  ss.setPlanner(planner);
-
-  ss.getSpaceInformation()->setValidStateSamplerAllocator(
-      ap_planning::allocScrewValidSampler);
-
-  // attempt to solve the problem within ten seconds of planning time
-  ob::PlannerStatus solved = ss.solve(5.0);
-  if (solved) {
-    ss.simplifySolution(5.);
-    std::cout << "Found solution:" << std::endl;
-    // print the path to screen
-    ss.getSolutionPath().print(std::cout);
-    return std::make_pair(ss.getSolutionPath(),
-                          std::make_pair(ss.getSpaceInformation(),
-                                         ss.getLastPlanComputationTime()));
-  } else {
-    std::cout << "No solution found" << std::endl;
-  }
-  return std::make_pair(og::PathGeometric(ss.getSpaceInformation()),
-                        std::make_pair(ss.getSpaceInformation(), 0.0));
-}
-
 bool solutionIsValid(og::PathGeometric &solution,
                      const ap_planning::APPlanningRequest &req,
                      const ob::SpaceInformationPtr si) {
@@ -194,22 +61,6 @@ bool solutionIsValid(og::PathGeometric &solution,
   return true;
 }
 
-trajectory_msgs::JointTrajectoryPoint ompl_to_msg(const ob::State *state) {
-  trajectory_msgs::JointTrajectoryPoint output;
-  output.positions.reserve(7);
-
-  const ob::CompoundStateSpace::StateType &compound_state =
-      *state->as<ob::CompoundStateSpace::StateType>();
-  const ob::RealVectorStateSpace::StateType &robot_state =
-      *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
-
-  for (size_t i = 0; i < 7; ++i) {
-    output.positions.push_back(robot_state[i]);
-  }
-
-  return output;
-}
-
 void show_screw(const affordance_primitives::ScrewStamped &screw_msg,
                 moveit_visual_tools::MoveItVisualTools &visual_tools) {
   visual_tools.deleteAllMarkers();
@@ -223,31 +74,6 @@ void show_screw(const affordance_primitives::ScrewStamped &screw_msg,
 
   visual_tools.publishArrow(screw_msg.origin, end);
   visual_tools.trigger();
-}
-
-bool checkDuplicateState(const std::vector<std::vector<double>> &states,
-                         const std::vector<double> &new_state) {
-  for (const auto &state : states) {
-    if (state.size() != new_state.size()) {
-      return false;
-    }
-
-    Eigen::VectorXd eig_new_state(new_state.size());
-    Eigen::VectorXd eig_old_state(state.size());
-    for (size_t i = 0; i < state.size(); ++i) {
-      eig_new_state[i] = new_state.at(i);
-      eig_old_state[i] = state.at(i);
-    }
-
-    const auto error = eig_new_state - eig_old_state;
-    if (error.norm() < 1e-3) {
-      // std::cout << "Old state:\n"
-      //           << eig_old_state << "\nNew State:\n"
-      //           << eig_new_state << "\n";
-      return false;
-    }
-  }
-  return true;
 }
 
 int main(int argc, char **argv) {
@@ -328,7 +154,7 @@ int main(int argc, char **argv) {
   single_request.screw_msg.is_pure_translation = true;
   planning_queue.push(single_request);
 
-  size_t success_count = 0;
+  // size_t success_count = 0;
 
   ap_planning::APMotionPlanner ap_planner;
 
@@ -336,7 +162,7 @@ int main(int argc, char **argv) {
   while (planning_queue.size() > 0 && ros::ok()) {
     auto req = planning_queue.front();
     planning_queue.pop();
-    success_count = 0;
+    // success_count = 0;
     visual_tools.prompt(
         "Press 'next' in the RvizVisualToolsGui window to start the demo");
 
@@ -347,6 +173,7 @@ int main(int argc, char **argv) {
       std::cout << "\n\n\nSuccess!!\n\n";
     } else {
       std::cout << "\n\n\nFail!!\n\n";
+      continue;
     }
 
     // // We need to transform the screw to be in the starting frame
@@ -437,33 +264,27 @@ int main(int argc, char **argv) {
     //     continue;
     //   }
 
-    //   moveit_msgs::DisplayTrajectory joint_traj;
-    //   joint_traj.model_id = "panda";
-    //   joint_traj.trajectory.push_back(moveit_msgs::RobotTrajectory());
+    moveit_msgs::DisplayTrajectory joint_traj;
+    joint_traj.model_id = "panda";
+    joint_traj.trajectory.push_back(moveit_msgs::RobotTrajectory());
 
-    //   moveit_msgs::RobotState start_msg;
-    //   start_msg.joint_state.name = joint_model_group->getVariableNames();
-    //   auto first_waypoint = ompl_to_msg(solution.getState(0));
-    //   start_msg.joint_state.position = first_waypoint.positions;
-    //   joint_traj.trajectory_start = start_msg;
+    moveit_msgs::RobotState start_msg;
+    start_msg.joint_state.name = joint_model_group->getVariableNames();
+    auto first_waypoint = result.joint_trajectory.points.at(0);
+    start_msg.joint_state.position = first_waypoint.positions;
+    joint_traj.trajectory_start = start_msg;
 
-    //   joint_traj.trajectory.at(0).joint_trajectory.header.frame_id =
-    //       "panda_link0";
-    //   joint_traj.trajectory.at(0).joint_trajectory.joint_names =
-    //       joint_model_group->getVariableNames();
+    joint_traj.trajectory.at(0).joint_trajectory.header.frame_id =
+        "panda_link0";
 
-    //   int time = 0;
+    int time = 0;
 
-    //   size_t num_waypoints = solution.getStateCount();
-    //   for (size_t i = 0; i < num_waypoints; ++i) {
-    //     auto wp = ompl_to_msg(solution.getState(i));
-    //     wp.time_from_start.sec = time;
-    //     joint_traj.trajectory.at(0).joint_trajectory.points.push_back(wp);
+    for (auto &wp : joint_traj.trajectory.at(0).joint_trajectory.points) {
+      wp.time_from_start.sec = time;
+      ++time;
+    }
 
-    //     ++time;
-    //   }
-
-    //   visual_tools.publishTrajectoryPath(joint_traj);
+    visual_tools.publishTrajectoryPath(joint_traj);
     // }
     // ROS_INFO_STREAM("Num success: "
     //                 << success_count

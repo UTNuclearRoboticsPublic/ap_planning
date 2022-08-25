@@ -88,6 +88,18 @@ class APMotionPlanner {
    */
   void increaseStateList(const affordance_primitives::Pose& pose,
                          std::vector<std::vector<double>>& state_list);
+
+  /** Given a solution path, this will fill in the planning response
+   *
+   * Note: it will interpolate the path, with may invalidate an otherwise valid
+   * path
+   *
+   * @param solution The un-interpolated found path
+   * @param req The original planning request
+   * @param res The response, which will be filled out
+   */
+  void populateResponse(ompl::geometric::PathGeometric& solution,
+                        const APPlanningRequest& req, APPlanningResponse& res);
 };
 
 }  // namespace ap_planning

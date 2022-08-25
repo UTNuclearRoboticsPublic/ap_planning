@@ -66,9 +66,8 @@ bool APMotionPlanner::plan(const APPlanningRequest& req,
   ob::PlannerStatus solved = ss_->solve(5.0);
   if (solved) {
     ss_->simplifySolution(1.0);
-    ss_->getSolutionPath().print(std::cout);
 
-    // TODO: fill in response here
+    populateResponse(ss_->getSolutionPath(), req, res);
     return true;
   }
 
@@ -223,5 +222,66 @@ void APMotionPlanner::increaseStateList(
   if (checkDuplicateState(state_list, joint_values)) {
     state_list.push_back(joint_values);
   }
+}
+
+void APMotionPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
+                                       const APPlanningRequest& req,
+                                       APPlanningResponse& res) {
+  // We can stop if the trajectory doesn't have points
+  if (solution.getStateCount() < 2) {
+    return;
+  }
+
+  // Interpolate the solution path
+  solution.interpolate();
+
+  // We will populate the trajectory
+  res.joint_trajectory.joint_names = joint_model_group_->getVariableNames();
+  const size_t num_joints = res.joint_trajectory.joint_names.size();
+  res.joint_trajectory.points.reserve(solution.getStateCount());
+
+  // Go through each point and check it for validity
+  for (const auto& state : solution.getStates()) {
+    // Extract the state info
+    const ob::CompoundStateSpace::StateType& compound_state =
+        *state->as<ob::CompoundStateSpace::StateType>();
+    const ob::RealVectorStateSpace::StateType& screw_state =
+        *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+    const ob::RealVectorStateSpace::StateType& robot_state =
+        *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
+
+    // First check for validity
+    if (!ss_->getSpaceInformation()->isValid(state)) {
+      // If a state is invalid, we don't want to continue the trajectory
+      res.trajectory_is_valid = false;
+
+      // Calculate the percent through the trajectory we made it
+      res.percentage_complete = screw_state[0] / req.theta;
+      return;
+    }
+
+    // Now add this state to the trajectory
+    trajectory_msgs::JointTrajectoryPoint output;
+    output.positions.reserve(num_joints);
+    for (size_t i = 0; i < num_joints; ++i) {
+      output.positions.push_back(robot_state[i]);
+    }
+
+    // TODO: figure out what to do about vel / time
+    res.joint_trajectory.points.push_back(output);
+  }
+
+  // Finally, we check the last point to make sure it is at the goal
+  const ob::CompoundStateSpace::StateType& compound_state =
+      *solution.getStates().back()->as<ob::CompoundStateSpace::StateType>();
+  const ob::RealVectorStateSpace::StateType& screw_state =
+      *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
+  const double err = fabs(req.theta - screw_state[0]);
+  if (err > 0.01) {
+    res.trajectory_is_valid = false;
+  } else {
+    res.trajectory_is_valid = true;
+  }
+  res.percentage_complete = screw_state[0] / req.theta;
 }
 }  // namespace ap_planning
