@@ -55,6 +55,8 @@ class APMotionPlanner {
  protected:
   ompl::base::StateSpacePtr state_space_;
   ompl::geometric::SimpleSetupPtr ss_;
+  affordance_primitives::ScrewAxis screw_axis_;
+  Eigen::Isometry3d goal_pose_;
   moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   std::shared_ptr<moveit::core::JointModelGroup> joint_model_group_;
@@ -62,6 +64,30 @@ class APMotionPlanner {
   bool setupStateSpace(const APPlanningRequest& req);
   bool setSpaceParameters(const APPlanningRequest& req,
                           ompl::base::StateSpacePtr& space);
+  bool setSimpleSetup(const ompl::base::StateSpacePtr& space);
+
+  /** Solves IK for the start and goal configurations
+   *
+   * @param req The planning request
+   * @param num_start Number of starting configurations to generate
+   * @param num_goal Number of goal configurations to generate
+   * @param start_configs Generated starting configs
+   * @param goal_configs Generated goal configs
+   * @return True if successful, false otherwise
+   */
+  bool findStartGoalStates(const APPlanningRequest& req, const size_t num_start,
+                           const size_t num_goal,
+                           std::vector<std::vector<double>>& start_configs,
+                           std::vector<std::vector<double>>& goal_configs);
+
+  /** Solves IK for a state and adds it to a list of valid states
+   *
+   * @param pose IK Pose
+   * @param state_list Valid poses, this wil expand if the found solution is
+   * sufficiently far from the other states in the list
+   */
+  void increaseStateList(const affordance_primitives::Pose& pose,
+                         std::vector<std::vector<double>>& state_list);
 };
 
 }  // namespace ap_planning

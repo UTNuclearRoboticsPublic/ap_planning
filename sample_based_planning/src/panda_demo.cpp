@@ -28,6 +28,8 @@
 #include <sample_based_planning/state_sampling.hpp>
 #include <sample_based_planning/state_utils.hpp>
 
+#include <sample_based_planning/screw_motion_planner.hpp>
+
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
@@ -328,6 +330,8 @@ int main(int argc, char **argv) {
 
   size_t success_count = 0;
 
+  ap_planning::APMotionPlanner ap_planner;
+
   // Plan each screw request
   while (planning_queue.size() > 0 && ros::ok()) {
     auto req = planning_queue.front();
@@ -338,127 +342,137 @@ int main(int argc, char **argv) {
 
     show_screw(req.screw_msg, visual_tools);
 
-    // We need to transform the screw to be in the starting frame
-    geometry_msgs::TransformStamped tf_msg;
-    tf_msg.header.frame_id = "panda_link0";
-    tf_msg.child_frame_id = "panda_link8";
-    tf_msg.transform.rotation = req.start_pose.pose.orientation;
-    tf_msg.transform.translation.x = req.start_pose.pose.position.x;
-    tf_msg.transform.translation.y = req.start_pose.pose.position.y;
-    tf_msg.transform.translation.z = req.start_pose.pose.position.z;
-    auto transformed_screw =
-        affordance_primitives::transformScrew(req.screw_msg, tf_msg);
-
-    // Find goal pose (in planning frame)
-    affordance_primitives::ScrewAxis screw_axis;
-    screw_axis.setScrewAxis(transformed_screw);
-    const Eigen::Isometry3d planning_to_start = tf2::transformToEigen(tf_msg);
-    Eigen::Isometry3d goal_pose =
-        planning_to_start * screw_axis.getTF(req.theta);
-
-    // generate start configs
-    kinematic_state->setToRandomPositions();
-    std::vector<std::vector<double>> start_configs, goal_configs;
-    bool found_ik;
-    for (size_t i = 0; i < 5; ++i) {
-      std::vector<double> joint_values;
-      found_ik =
-          kinematic_state->setFromIK(joint_model_group, req.start_pose.pose);
-      if (found_ik) {
-        kinematic_state->copyJointGroupPositions(joint_model_group,
-                                                 joint_values);
-
-        if (checkDuplicateState(start_configs, joint_values)) {
-          start_configs.push_back(joint_values);
-        }
-      }
-
-      found_ik =
-          kinematic_state->setFromIK(joint_model_group, tf2::toMsg(goal_pose));
-      if (found_ik) {
-        // check to see if duplicates?
-        kinematic_state->copyJointGroupPositions(joint_model_group,
-                                                 joint_values);
-
-        if (checkDuplicateState(goal_configs, joint_values)) {
-          goal_configs.push_back(joint_values);
-        }
-      }
-      kinematic_state->setToRandomPositions();
+    ap_planning::APPlanningResponse result;
+    if (ap_planner.plan(req, result)) {
+      std::cout << "\n\n\nSuccess!!\n\n";
+    } else {
+      std::cout << "\n\n\nFail!!\n\n";
     }
 
-    // generate additional goal configs
-    for (size_t i = 0; i < 5; ++i) {
-      std::vector<double> joint_values;
-      found_ik =
-          kinematic_state->setFromIK(joint_model_group, tf2::toMsg(goal_pose));
-      if (found_ik) {
-        // check to see if duplicates?
-        kinematic_state->copyJointGroupPositions(joint_model_group,
-                                                 joint_values);
+    // // We need to transform the screw to be in the starting frame
+    // geometry_msgs::TransformStamped tf_msg;
+    // tf_msg.header.frame_id = "panda_link0";
+    // tf_msg.child_frame_id = "panda_link8";
+    // tf_msg.transform.rotation = req.start_pose.pose.orientation;
+    // tf_msg.transform.translation.x = req.start_pose.pose.position.x;
+    // tf_msg.transform.translation.y = req.start_pose.pose.position.y;
+    // tf_msg.transform.translation.z = req.start_pose.pose.position.z;
+    // auto transformed_screw =
+    //     affordance_primitives::transformScrew(req.screw_msg, tf_msg);
 
-        if (checkDuplicateState(goal_configs, joint_values)) {
-          goal_configs.push_back(joint_values);
-        }
-      }
-      kinematic_state->setToRandomPositions();
-    }
+    // // Find goal pose (in planning frame)
+    // affordance_primitives::ScrewAxis screw_axis;
+    // screw_axis.setScrewAxis(transformed_screw);
+    // const Eigen::Isometry3d planning_to_start =
+    // tf2::transformToEigen(tf_msg); Eigen::Isometry3d goal_pose =
+    //     planning_to_start * screw_axis.getTF(req.theta);
 
-    double total_success_time = 0.0;
-    double max_found_time = 0.0;
-    size_t num_post_rejections = 0;
+    // // generate start configs
+    // kinematic_state->setToRandomPositions();
+    // std::vector<std::vector<double>> start_configs, goal_configs;
+    // bool found_ik;
+    // for (size_t i = 0; i < 5; ++i) {
+    //   std::vector<double> joint_values;
+    //   found_ik =
+    //       kinematic_state->setFromIK(joint_model_group, req.start_pose.pose);
+    //   if (found_ik) {
+    //     kinematic_state->copyJointGroupPositions(joint_model_group,
+    //                                              joint_values);
 
-    std::cout << "\nUsing my sampler:" << std::endl;
-    for (size_t i = 0; i < 5; ++i) {
-      auto planner_out = plan(req, start_configs, goal_configs);
-      auto solution = planner_out.first;
-      if (!solutionIsValid(solution, req, planner_out.second.first)) {
-        continue;
-      }
-      total_success_time += planner_out.second.second;
-      max_found_time = std::max(max_found_time, planner_out.second.second);
-      ++success_count;
-      solution.interpolate();
-      if (!solutionIsValid(solution, req, planner_out.second.first)) {
-        ++num_post_rejections;
-        continue;
-      }
+    //     if (checkDuplicateState(start_configs, joint_values)) {
+    //       start_configs.push_back(joint_values);
+    //     }
+    //   }
 
-      moveit_msgs::DisplayTrajectory joint_traj;
-      joint_traj.model_id = "panda";
-      joint_traj.trajectory.push_back(moveit_msgs::RobotTrajectory());
+    //   found_ik =
+    //       kinematic_state->setFromIK(joint_model_group,
+    //       tf2::toMsg(goal_pose));
+    //   if (found_ik) {
+    //     // check to see if duplicates?
+    //     kinematic_state->copyJointGroupPositions(joint_model_group,
+    //                                              joint_values);
 
-      moveit_msgs::RobotState start_msg;
-      start_msg.joint_state.name = joint_model_group->getVariableNames();
-      auto first_waypoint = ompl_to_msg(solution.getState(0));
-      start_msg.joint_state.position = first_waypoint.positions;
-      joint_traj.trajectory_start = start_msg;
+    //     if (checkDuplicateState(goal_configs, joint_values)) {
+    //       goal_configs.push_back(joint_values);
+    //     }
+    //   }
+    //   kinematic_state->setToRandomPositions();
+    // }
 
-      joint_traj.trajectory.at(0).joint_trajectory.header.frame_id =
-          "panda_link0";
-      joint_traj.trajectory.at(0).joint_trajectory.joint_names =
-          joint_model_group->getVariableNames();
+    // // generate additional goal configs
+    // for (size_t i = 0; i < 5; ++i) {
+    //   std::vector<double> joint_values;
+    //   found_ik =
+    //       kinematic_state->setFromIK(joint_model_group,
+    //       tf2::toMsg(goal_pose));
+    //   if (found_ik) {
+    //     // check to see if duplicates?
+    //     kinematic_state->copyJointGroupPositions(joint_model_group,
+    //                                              joint_values);
 
-      int time = 0;
+    //     if (checkDuplicateState(goal_configs, joint_values)) {
+    //       goal_configs.push_back(joint_values);
+    //     }
+    //   }
+    //   kinematic_state->setToRandomPositions();
+    // }
 
-      size_t num_waypoints = solution.getStateCount();
-      for (size_t i = 0; i < num_waypoints; ++i) {
-        auto wp = ompl_to_msg(solution.getState(i));
-        wp.time_from_start.sec = time;
-        joint_traj.trajectory.at(0).joint_trajectory.points.push_back(wp);
+    // double total_success_time = 0.0;
+    // double max_found_time = 0.0;
+    // size_t num_post_rejections = 0;
 
-        ++time;
-      }
+    // std::cout << "\nUsing my sampler:" << std::endl;
+    // for (size_t i = 0; i < 5; ++i) {
+    //   auto planner_out = plan(req, start_configs, goal_configs);
+    //   auto solution = planner_out.first;
+    //   if (!solutionIsValid(solution, req, planner_out.second.first)) {
+    //     continue;
+    //   }
+    //   total_success_time += planner_out.second.second;
+    //   max_found_time = std::max(max_found_time, planner_out.second.second);
+    //   ++success_count;
+    //   solution.interpolate();
+    //   if (!solutionIsValid(solution, req, planner_out.second.first)) {
+    //     ++num_post_rejections;
+    //     continue;
+    //   }
 
-      visual_tools.publishTrajectoryPath(joint_traj);
-    }
-    ROS_INFO_STREAM("Num success: "
-                    << success_count
-                    << " (with num post reject = " << num_post_rejections << ")"
-                    << "\nWith #start = " << start_configs.size()
-                    << "\n#end = " << goal_configs.size()
-                    << "\nAvg time = " << total_success_time / success_count
-                    << "\nMax found time = " << max_found_time);
+    //   moveit_msgs::DisplayTrajectory joint_traj;
+    //   joint_traj.model_id = "panda";
+    //   joint_traj.trajectory.push_back(moveit_msgs::RobotTrajectory());
+
+    //   moveit_msgs::RobotState start_msg;
+    //   start_msg.joint_state.name = joint_model_group->getVariableNames();
+    //   auto first_waypoint = ompl_to_msg(solution.getState(0));
+    //   start_msg.joint_state.position = first_waypoint.positions;
+    //   joint_traj.trajectory_start = start_msg;
+
+    //   joint_traj.trajectory.at(0).joint_trajectory.header.frame_id =
+    //       "panda_link0";
+    //   joint_traj.trajectory.at(0).joint_trajectory.joint_names =
+    //       joint_model_group->getVariableNames();
+
+    //   int time = 0;
+
+    //   size_t num_waypoints = solution.getStateCount();
+    //   for (size_t i = 0; i < num_waypoints; ++i) {
+    //     auto wp = ompl_to_msg(solution.getState(i));
+    //     wp.time_from_start.sec = time;
+    //     joint_traj.trajectory.at(0).joint_trajectory.points.push_back(wp);
+
+    //     ++time;
+    //   }
+
+    //   visual_tools.publishTrajectoryPath(joint_traj);
+    // }
+    // ROS_INFO_STREAM("Num success: "
+    //                 << success_count
+    //                 << " (with num post reject = " << num_post_rejections <<
+    //                 ")"
+    //                 << "\nWith #start = " << start_configs.size()
+    //                 << "\n#end = " << goal_configs.size()
+    //                 << "\nAvg time = " << total_success_time / success_count
+    //                 << "\nMax found time = " << max_found_time);
   }
 
   ros::shutdown();

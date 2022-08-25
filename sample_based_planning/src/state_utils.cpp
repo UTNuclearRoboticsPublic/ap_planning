@@ -3,6 +3,41 @@
 #include <sample_based_planning/state_utils.hpp>
 
 namespace ap_planning {
+bool checkDuplicateState(const std::vector<std::vector<double>> &states,
+                         const std::vector<double> &new_state) {
+  for (const auto &state : states) {
+    if (state.size() != new_state.size()) {
+      return false;
+    }
+
+    Eigen::VectorXd error(new_state.size());
+    for (size_t i = 0; i < state.size(); ++i) {
+      error[i] = new_state.at(i) - state.at(i);
+    }
+    if (error.norm() < 1e-3) {
+      return false;
+    }
+  }
+  return true;
+}
+
+ob::ScopedState<> vectorToState(ompl::base::StateSpacePtr space,
+                                const std::vector<double> &screw_state,
+                                const std::vector<double> &robot_state) {
+  ob::ScopedState<> output(space);
+
+  const size_t n_screw = screw_state.size();
+  for (size_t i = 0; i < n_screw; ++i) {
+    output[i] = screw_state.at(i);
+  }
+
+  for (size_t i = 0; i < robot_state.size(); ++i) {
+    output[n_screw + i] = robot_state.at(i);
+  }
+
+  return output;
+}
+
 ScrewGoal::ScrewGoal(const ob::SpaceInformationPtr si)
     : GoalStates(si), screw_bounds_(1) {
   ob::CompoundStateSpace *compound_space =

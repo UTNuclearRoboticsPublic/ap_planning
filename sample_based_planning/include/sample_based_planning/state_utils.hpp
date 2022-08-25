@@ -61,6 +61,27 @@ struct APPlanningResponse {
   bool trajectory_is_valid;
 };
 
+/** Checks if a state is close to any in a list of others
+ *
+ * @param states The list of already generated states
+ * @param new_state The new state to check
+ * @return True if the state can be added to the list (without duplication),
+ * false otherwise
+ */
+bool checkDuplicateState(const std::vector<std::vector<double>> &states,
+                         const std::vector<double> &new_state);
+
+/** Takes vectors and makes a screw/robot hybrid state
+ *
+ * @param space State space
+ * @param screw_state Vector for the screw theta's
+ * @param robot_state Vector for the robot joint angles
+ * @return The OMPL state
+ */
+ompl::base::ScopedState<> vectorToState(ompl::base::StateSpacePtr space,
+                                        const std::vector<double> &screw_state,
+                                        const std::vector<double> &robot_state);
+
 /**
  * Allows passing screw parameters into the planning instance
  */

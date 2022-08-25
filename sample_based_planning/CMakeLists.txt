@@ -54,6 +54,7 @@ include_directories(SYSTEM
                     ${OMPL_INCLUDE_DIRS})
 
 add_library(${PROJECT_NAME}
+  src/screw_motion_planner.cpp
   src/state_utils.cpp
   src/state_sampling.cpp
 )
