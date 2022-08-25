@@ -60,11 +60,13 @@ class ScrewValidSampler : public ob::ValidStateSampler {
     return false;
   }
 
+  // Holds the kinematic model
+  // NOTE: You must set this before creating instances of this class!
+  inline static moveit::core::RobotModelPtr kinematic_model;
+
  protected:
   ompl::RNG rng_;
   ob::RealVectorBounds screw_bounds_;
-  // TODO: make kinematic model static so less reading params
-  moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
   affordance_primitives::ScrewAxis screw_axis_;
@@ -88,10 +90,12 @@ class ScrewSampler : public ob::StateSampler {
   void sampleGaussian(ob::State *state, const ob::State *mean,
                       double stdDev) override;
 
+  // Holds the kinematic model
+  // NOTE: You must set this before creating instances of this class!
+  inline static moveit::core::RobotModelPtr kinematic_model;
+
  protected:
   ompl::RNG rng_;
-  // TODO: make kinematic model static so less reading params
-  moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
   ob::RealVectorBounds screw_bounds_;

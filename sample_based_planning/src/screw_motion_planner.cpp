@@ -2,9 +2,11 @@
 #include <sample_based_planning/screw_motion_planner.hpp>
 
 namespace ap_planning {
-APMotionPlanner::APMotionPlanner() {
+APMotionPlanner::APMotionPlanner(const std::string& move_group_name,
+                                 const std::string& robot_description_name) {
   // Load the robot model
-  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
+  robot_model_loader::RobotModelLoader robot_model_loader(
+      robot_description_name);
   kinematic_model_ = robot_model_loader.getModel();
 
   // Get information about the robot
@@ -12,7 +14,7 @@ APMotionPlanner::APMotionPlanner() {
       std::make_shared<moveit::core::RobotState>(kinematic_model_);
   kinematic_state_->setToDefaultValues();
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
-      *kinematic_model_->getJointModelGroup("panda_arm"));
+      *kinematic_model_->getJointModelGroup(move_group_name));
 }
 
 bool APMotionPlanner::plan(const APPlanningRequest& req,
@@ -34,6 +36,7 @@ bool APMotionPlanner::plan(const APPlanningRequest& req,
   }
 
   // Set the sampler and lock
+  ScrewSampler::kinematic_model = kinematic_model_;
   state_space_->setStateSamplerAllocator(ap_planning::allocScrewSampler);
   state_space_->as<ob::CompoundStateSpace>()->lock();
 
@@ -107,8 +110,8 @@ bool APMotionPlanner::setSpaceParameters(const APPlanningRequest& req,
                                          ompl::base::StateSpacePtr& space) {
   // We need to transform the screw to be in the starting frame
   geometry_msgs::TransformStamped tf_msg;
-  tf_msg.header.frame_id = "panda_link0";
-  tf_msg.child_frame_id = "panda_link8";
+  tf_msg.header.frame_id = req.screw_msg.header.frame_id;
+  tf_msg.child_frame_id = req.ee_frame_name;
   tf_msg.transform.rotation = req.start_pose.pose.orientation;
   tf_msg.transform.translation.x = req.start_pose.pose.position.x;
   tf_msg.transform.translation.y = req.start_pose.pose.position.y;
@@ -134,15 +137,14 @@ bool APMotionPlanner::setSpaceParameters(const APPlanningRequest& req,
   pose_param->setValue(affordance_primitives::poseToStr(req.start_pose));
   space->params().add(pose_param);
 
-  // Add robot description and move group parameters
-  // TODO make these obsolete, parameterized, or anything else
-  auto robot_description_param =
-      std::make_shared<ap_planning::StringParam>("robot_description");
-  robot_description_param->setValue("robot_description");
+  // Add EE frame name and move group parameters
+  auto ee_name_param =
+      std::make_shared<ap_planning::StringParam>("ee_frame_name");
+  ee_name_param->setValue(req.ee_frame_name);
+  space->params().add(ee_name_param);
   auto move_group_param =
       std::make_shared<ap_planning::StringParam>("move_group");
-  move_group_param->setValue("panda_arm");
-  space->params().add(robot_description_param);
+  move_group_param->setValue(joint_model_group_->getName());
   space->params().add(move_group_param);
 
   return true;
@@ -153,11 +155,12 @@ bool APMotionPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space) {
   ss_ = std::make_shared<og::SimpleSetup>(space);
 
   // Set state validity checking
+  ScrewValidityChecker::kinematic_model = kinematic_model_;
   ss_->setStateValidityChecker(
-      std::make_shared<ap_planning::ScrewValidityChecker>(
-          ss_->getSpaceInformation()));
+      std::make_shared<ScrewValidityChecker>(ss_->getSpaceInformation()));
 
   // Set valid state sampler
+  ScrewValidSampler::kinematic_model = kinematic_model_;
   ss_->getSpaceInformation()->setValidStateSamplerAllocator(
       ap_planning::allocScrewValidSampler);
 
@@ -283,5 +286,6 @@ void APMotionPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
     res.trajectory_is_valid = true;
   }
   res.percentage_complete = screw_state[0] / req.theta;
+  res.path_length = solution.length();
 }
 }  // namespace ap_planning

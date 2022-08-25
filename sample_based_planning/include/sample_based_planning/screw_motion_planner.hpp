@@ -48,7 +48,9 @@ namespace ap_planning {
  */
 class APMotionPlanner {
  public:
-  APMotionPlanner();
+  APMotionPlanner(
+      const std::string& move_group_name,
+      const std::string& robot_description_name = "robot_description");
 
   bool plan(const APPlanningRequest& req, APPlanningResponse& res);
 

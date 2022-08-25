@@ -55,12 +55,14 @@ struct APPlanningRequest {
   affordance_primitive_msgs::ScrewStamped screw_msg;
   double theta;
   geometry_msgs::PoseStamped start_pose;
+  std::string ee_frame_name;
 };
 
 struct APPlanningResponse {
   trajectory_msgs::JointTrajectory joint_trajectory;
   double percentage_complete;
   bool trajectory_is_valid;
+  double path_length;
 };
 
 /** Checks if a state is close to any in a list of others
@@ -179,15 +181,18 @@ class ScrewValidityChecker : public ob::StateValidityChecker {
 
   virtual bool isValid(const ob::State *state) const;
 
+  // Holds the kinematic model
+  // NOTE: You must set this before creating instances of this class!
+  inline static moveit::core::RobotModelPtr kinematic_model;
+
  protected:
   ob::RealVectorBounds robot_bounds_;
   ob::RealVectorBounds screw_bounds_;
-  // TODO: make kinematic model static so less reading params
-  moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
   affordance_primitives::ScrewAxis screw_axis_;
   Eigen::Isometry3d start_pose_;
+  std::string ee_frame_name_;
 };
 
 }  // namespace ap_planning

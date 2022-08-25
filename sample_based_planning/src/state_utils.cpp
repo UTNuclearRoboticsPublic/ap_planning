@@ -59,20 +59,17 @@ double ScrewGoal::distanceGoal(const ob::State *state) const {
 
 ScrewValidityChecker::ScrewValidityChecker(const ob::SpaceInformationPtr &si)
     : ob::StateValidityChecker(si), robot_bounds_(1), screw_bounds_(1) {
-  // Get robot description and move group parameters
-  std::string rd_string, mg_string;
-  si->getStateSpace()->params().getParam("robot_description", rd_string);
+  // Get move group parameter
+  std::string mg_string;
   si->getStateSpace()->params().getParam("move_group", mg_string);
+  si->getStateSpace()->params().getParam("ee_frame_name", ee_frame_name_);
 
-  // Load robot parameters
-  robot_model_loader::RobotModelLoader robot_model_loader(rd_string);
-  kinematic_model_ = robot_model_loader.getModel();
   kinematic_state_ =
-      std::make_shared<moveit::core::RobotState>(kinematic_model_);
+      std::make_shared<moveit::core::RobotState>(kinematic_model);
   kinematic_state_->setToDefaultValues();
 
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
-      *kinematic_model_->getJointModelGroup(mg_string));
+      *kinematic_model->getJointModelGroup(mg_string));
 
   std::string screw_msg_string, pose_msg_string;
   si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
@@ -119,9 +116,10 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   }
 
   // Calculate the EE pose for this robot state
-  kinematic_state_->setJointGroupPositions("panda_arm", joint_state);
+  kinematic_state_->setJointGroupPositions(joint_model_group_.get(),
+                                           joint_state);
   kinematic_state_->update(true);
-  auto this_state_pose = kinematic_state_->getFrameTransform("panda_link8");
+  auto this_state_pose = kinematic_state_->getFrameTransform(ee_frame_name_);
 
   // Make sure the current pose is on the required screw axis
   Eigen::VectorXd error(6);
