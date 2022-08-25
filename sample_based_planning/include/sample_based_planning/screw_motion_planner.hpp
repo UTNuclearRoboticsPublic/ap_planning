@@ -52,6 +52,7 @@ class APMotionPlanner {
       const std::string& move_group_name,
       const std::string& robot_description_name = "robot_description");
 
+  // TODO: allow taking current pose instead of generating them
   bool plan(const APPlanningRequest& req, APPlanningResponse& res);
 
  protected:

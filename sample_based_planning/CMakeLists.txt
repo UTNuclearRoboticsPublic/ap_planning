@@ -41,7 +41,8 @@ catkin_package(
   affordance_primitives
   moveit_ros_planning_interface
   roscpp
-#  DEPENDS system_lib
+ DEPENDS
+  OMPL
 )
 
 
