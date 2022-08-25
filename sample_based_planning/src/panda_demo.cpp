@@ -267,6 +267,7 @@ int main(int argc, char **argv) {
     moveit_msgs::DisplayTrajectory joint_traj;
     joint_traj.model_id = "panda";
     joint_traj.trajectory.push_back(moveit_msgs::RobotTrajectory());
+    joint_traj.trajectory.at(0).joint_trajectory = result.joint_trajectory;
 
     moveit_msgs::RobotState start_msg;
     start_msg.joint_state.name = joint_model_group->getVariableNames();

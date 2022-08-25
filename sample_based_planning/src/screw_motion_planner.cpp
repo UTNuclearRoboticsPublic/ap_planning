@@ -185,7 +185,7 @@ bool APMotionPlanner::findStartGoalStates(
 
   // Go through and make configurations
   size_t i = 0;
-  while (start_configs.size() < num_start && goal_configs.size() < num_goal &&
+  while ((start_configs.size() < num_start || goal_configs.size() < num_goal) &&
          i < 2 * (num_goal + num_start)) {
     // Every time, we set to random states to get variety in solutions
     kinematic_state_->setToRandomPositions();
