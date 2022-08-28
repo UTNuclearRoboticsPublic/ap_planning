@@ -60,11 +60,15 @@ class APMotionPlanner {
   ompl::geometric::SimpleSetupPtr ss_;
   affordance_primitives::ScrewAxis screw_axis_;
   Eigen::Isometry3d goal_pose_;
+  Eigen::Isometry3d start_pose_;
   moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   std::shared_ptr<moveit::core::JointModelGroup> joint_model_group_;
+  bool passed_start_config_;
 
   bool setupStateSpace(const APPlanningRequest& req);
+  affordance_primitives::TransformStamped getStartTF(
+      const APPlanningRequest& req);
   bool setSpaceParameters(const APPlanningRequest& req,
                           ompl::base::StateSpacePtr& space);
   bool setSimpleSetup(const ompl::base::StateSpacePtr& space);
@@ -82,6 +86,18 @@ class APMotionPlanner {
                            const size_t num_goal,
                            std::vector<std::vector<double>>& start_configs,
                            std::vector<std::vector<double>>& goal_configs);
+
+  /** Sets the start state to the requested and solves IK for goal states
+   *
+   * @param req The planning request
+   * @param num_goal Number of goal configurations to generate
+   * @param start_configs Generated starting configs
+   * @param goal_configs Generated goal configs
+   * @return True if successful, false otherwise
+   */
+  bool findGoalStates(const APPlanningRequest& req, const size_t num_goal,
+                      std::vector<std::vector<double>>& start_configs,
+                      std::vector<std::vector<double>>& goal_configs);
 
   /** Solves IK for a state and adds it to a list of valid states
    *

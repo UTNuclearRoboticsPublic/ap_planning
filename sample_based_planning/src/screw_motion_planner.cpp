@@ -47,8 +47,14 @@ bool APMotionPlanner::plan(const APPlanningRequest& req,
 
   // Create start and goal states
   std::vector<std::vector<double>> start_configs, goal_configs;
-  if (!findStartGoalStates(req, 5, 10, start_configs, goal_configs)) {
-    return false;
+  if (passed_start_config_) {
+    if (!findGoalStates(req, 10, start_configs, goal_configs)) {
+      return false;
+    }
+  } else {
+    if (!findStartGoalStates(req, 5, 10, start_configs, goal_configs)) {
+      return false;
+    }
   }
 
   // Set the start states
@@ -109,13 +115,7 @@ bool APMotionPlanner::setupStateSpace(const APPlanningRequest& req) {
 bool APMotionPlanner::setSpaceParameters(const APPlanningRequest& req,
                                          ompl::base::StateSpacePtr& space) {
   // We need to transform the screw to be in the starting frame
-  geometry_msgs::TransformStamped tf_msg;
-  tf_msg.header.frame_id = req.screw_msg.header.frame_id;
-  tf_msg.child_frame_id = req.ee_frame_name;
-  tf_msg.transform.rotation = req.start_pose.pose.orientation;
-  tf_msg.transform.translation.x = req.start_pose.pose.position.x;
-  tf_msg.transform.translation.y = req.start_pose.pose.position.y;
-  tf_msg.transform.translation.z = req.start_pose.pose.position.z;
+  geometry_msgs::TransformStamped tf_msg = getStartTF(req);
   auto transformed_screw =
       affordance_primitives::transformScrew(req.screw_msg, tf_msg);
 
@@ -134,7 +134,9 @@ bool APMotionPlanner::setSpaceParameters(const APPlanningRequest& req,
 
   // Add starting pose
   auto pose_param = std::make_shared<ap_planning::PoseParam>("pose_param");
-  pose_param->setValue(affordance_primitives::poseToStr(req.start_pose));
+  auto pose_msg = req.start_pose;
+  pose_msg.pose = tf2::toMsg(start_pose_);
+  pose_param->setValue(affordance_primitives::poseToStr(pose_msg));
   space->params().add(pose_param);
 
   // Add EE frame name and move group parameters
@@ -148,6 +150,35 @@ bool APMotionPlanner::setSpaceParameters(const APPlanningRequest& req,
   space->params().add(move_group_param);
 
   return true;
+}
+
+affordance_primitives::TransformStamped APMotionPlanner::getStartTF(
+    const APPlanningRequest& req) {
+  geometry_msgs::TransformStamped tf_msg;
+  tf_msg.header.frame_id = req.screw_msg.header.frame_id;
+  tf_msg.child_frame_id = req.ee_frame_name;
+
+  // Check if a starting joint configuration was given
+  if (req.start_joint_state.size() == joint_model_group_->getVariableCount()) {
+    // Extract the start pose
+    kinematic_state_->setJointGroupPositions(joint_model_group_.get(),
+                                             req.start_joint_state);
+    auto pose_eig = kinematic_state_->getGlobalLinkTransform(req.ee_frame_name);
+    tf_msg.transform = tf2::eigenToTransform(pose_eig).transform;
+    passed_start_config_ = true;
+  } else {
+    // Set start pose directly
+    tf_msg.transform.rotation = req.start_pose.pose.orientation;
+    tf_msg.transform.translation.x = req.start_pose.pose.position.x;
+    tf_msg.transform.translation.y = req.start_pose.pose.position.y;
+    tf_msg.transform.translation.z = req.start_pose.pose.position.z;
+    passed_start_config_ = false;
+  }
+
+  // Set the start pose
+  start_pose_ = tf2::transformToEigen(tf_msg);
+
+  return tf_msg;
 }
 
 bool APMotionPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space) {
@@ -206,6 +237,37 @@ bool APMotionPlanner::findStartGoalStates(
   }
 
   return start_configs.size() == num_start && goal_configs.size() == num_goal;
+}
+
+bool APMotionPlanner::findGoalStates(
+    const APPlanningRequest& req, const size_t num_goal,
+    std::vector<std::vector<double>>& start_configs,
+    std::vector<std::vector<double>>& goal_configs) {
+  start_configs.clear();
+  goal_configs.clear();
+  goal_configs.reserve(num_goal);
+
+  if (req.start_joint_state.size() != joint_model_group_->getVariableCount()) {
+    return false;
+  }
+  start_configs.push_back(req.start_joint_state);
+  kinematic_state_->setJointGroupPositions(joint_model_group_.get(),
+                                           req.start_joint_state);
+
+  geometry_msgs::Pose goal_pose_msg = tf2::toMsg(goal_pose_);
+
+  // Go through and make configurations
+  size_t i = 0;
+  while (goal_configs.size() < num_goal && i < 2 * num_goal) {
+    // Try to add a goal configuration
+    increaseStateList(goal_pose_msg, goal_configs);
+
+    // Every time, we set to random states to get variety in solutions
+    kinematic_state_->setToRandomPositions();
+    i++;
+  }
+
+  return goal_configs.size() == num_goal;
 }
 
 void APMotionPlanner::increaseStateList(

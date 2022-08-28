@@ -104,6 +104,12 @@ int main(int argc, char **argv) {
   single_request.screw_msg.axis.x = 1;
   planning_queue.push(single_request);
 
+  // This time, send a joint configuration
+  single_request.start_joint_state =
+      std::vector<double>{0, -0.785, 0, -2.356, 0, 1.571, 0.785};
+  planning_queue.push(single_request);
+
+  single_request.start_joint_state.clear();
   single_request.theta = 0.5 * M_PI;
   single_request.screw_msg.axis.x = -1;
   planning_queue.push(single_request);

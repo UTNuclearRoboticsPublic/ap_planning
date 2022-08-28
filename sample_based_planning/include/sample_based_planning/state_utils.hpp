@@ -54,8 +54,11 @@ namespace ap_planning {
 struct APPlanningRequest {
   affordance_primitive_msgs::ScrewStamped screw_msg;
   double theta;
-  geometry_msgs::PoseStamped start_pose;
   std::string ee_frame_name;
+
+  // Only set one of these
+  std::vector<double> start_joint_state;
+  geometry_msgs::PoseStamped start_pose;
 };
 
 struct APPlanningResponse {
