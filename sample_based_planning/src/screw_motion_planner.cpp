@@ -10,11 +10,13 @@ APMotionPlanner::APMotionPlanner(const std::string& move_group_name,
   kinematic_model_ = robot_model_loader.getModel();
 
   // Get information about the robot
-  kinematic_state_ =
-      std::make_shared<moveit::core::RobotState>(kinematic_model_);
-  kinematic_state_->setToDefaultValues();
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
       *kinematic_model_->getJointModelGroup(move_group_name));
+
+  // Set kinematic model for classes that will need it
+  ScrewSampler::kinematic_model = kinematic_model_;
+  ScrewValidityChecker::kinematic_model = kinematic_model_;
+  ScrewValidSampler::kinematic_model = kinematic_model_;
 }
 
 bool APMotionPlanner::plan(const APPlanningRequest& req,
@@ -24,6 +26,10 @@ bool APMotionPlanner::plan(const APPlanningRequest& req,
   res.joint_trajectory.points.clear();
   res.percentage_complete = 0.0;
   res.trajectory_is_valid = false;
+
+  kinematic_state_ =
+      std::make_shared<moveit::core::RobotState>(kinematic_model_);
+  kinematic_state_->setToDefaultValues();
 
   // Set up the state space for this plan
   if (!setupStateSpace(req)) {
@@ -36,7 +42,6 @@ bool APMotionPlanner::plan(const APPlanningRequest& req,
   }
 
   // Set the sampler and lock
-  ScrewSampler::kinematic_model = kinematic_model_;
   state_space_->setStateSamplerAllocator(ap_planning::allocScrewSampler);
   state_space_->as<ob::CompoundStateSpace>()->lock();
 
@@ -155,16 +160,15 @@ bool APMotionPlanner::setSpaceParameters(const APPlanningRequest& req,
 affordance_primitives::TransformStamped APMotionPlanner::getStartTF(
     const APPlanningRequest& req) {
   geometry_msgs::TransformStamped tf_msg;
-  tf_msg.header.frame_id = req.screw_msg.header.frame_id;
-  tf_msg.child_frame_id = req.ee_frame_name;
 
   // Check if a starting joint configuration was given
   if (req.start_joint_state.size() == joint_model_group_->getVariableCount()) {
     // Extract the start pose
     kinematic_state_->setJointGroupPositions(joint_model_group_.get(),
                                              req.start_joint_state);
-    auto pose_eig = kinematic_state_->getGlobalLinkTransform(req.ee_frame_name);
-    tf_msg.transform = tf2::eigenToTransform(pose_eig).transform;
+    kinematic_state_->update(true);
+    auto pose_eig = kinematic_state_->getFrameTransform(req.ee_frame_name);
+    tf_msg = tf2::eigenToTransform(pose_eig);
     passed_start_config_ = true;
   } else {
     // Set start pose directly
@@ -176,6 +180,8 @@ affordance_primitives::TransformStamped APMotionPlanner::getStartTF(
   }
 
   // Set the start pose
+  tf_msg.header.frame_id = req.screw_msg.header.frame_id;
+  tf_msg.child_frame_id = req.ee_frame_name;
   start_pose_ = tf2::transformToEigen(tf_msg);
 
   return tf_msg;
@@ -186,12 +192,10 @@ bool APMotionPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space) {
   ss_ = std::make_shared<og::SimpleSetup>(space);
 
   // Set state validity checking
-  ScrewValidityChecker::kinematic_model = kinematic_model_;
   ss_->setStateValidityChecker(
       std::make_shared<ScrewValidityChecker>(ss_->getSpaceInformation()));
 
   // Set valid state sampler
-  ScrewValidSampler::kinematic_model = kinematic_model_;
   ss_->getSpaceInformation()->setValidStateSamplerAllocator(
       ap_planning::allocScrewValidSampler);
 
@@ -236,7 +240,7 @@ bool APMotionPlanner::findStartGoalStates(
     }
   }
 
-  return start_configs.size() == num_start && goal_configs.size() == num_goal;
+  return start_configs.size() > 0 && goal_configs.size() > 0;
 }
 
 bool APMotionPlanner::findGoalStates(
@@ -267,7 +271,7 @@ bool APMotionPlanner::findGoalStates(
     i++;
   }
 
-  return goal_configs.size() == num_goal;
+  return goal_configs.size() > 0;
 }
 
 void APMotionPlanner::increaseStateList(
