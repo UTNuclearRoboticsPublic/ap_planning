@@ -242,5 +242,4 @@ size_t IKSolver::calculateNumWaypoints(
 }
 }  // namespace ap_planning
 
-PLUGINLIB_EXPORT_CLASS(ap_planning::IKSolver,
-                       ap_planning::IKSolverBase);
+PLUGINLIB_EXPORT_CLASS(ap_planning::IKSolver, ap_planning::IKSolverBase);

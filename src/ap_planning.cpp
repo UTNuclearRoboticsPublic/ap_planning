@@ -12,9 +12,9 @@ bool APPlanner::initialize() {
   }
 
   // Load solver
-  solver_loader_ = std::make_shared<
-      pluginlib::ClassLoader<ap_planning::IKSolverBase>>(
-      "ap_planning", "ap_planning::IKSolverBase");
+  solver_loader_ =
+      std::make_shared<pluginlib::ClassLoader<ap_planning::IKSolverBase>>(
+          "ap_planning", "ap_planning::IKSolverBase");
   try {
     ik_solver_ = solver_loader_->createInstance(ik_solver_name);
   } catch (pluginlib::PluginlibException& ex) {
