@@ -1,9 +1,9 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
-#include <ap_planning/screw_motion_planner.hpp>
+#include <ap_planning/screw_planner.hpp>
 
 namespace ap_planning {
-APMotionPlanner::APMotionPlanner(const std::string& move_group_name,
-                                 const std::string& robot_description_name) {
+ScrewPlanner::ScrewPlanner(const std::string& move_group_name,
+                           const std::string& robot_description_name) {
   // Load the robot model
   robot_model_loader::RobotModelLoader robot_model_loader(
       robot_description_name);
@@ -19,8 +19,7 @@ APMotionPlanner::APMotionPlanner(const std::string& move_group_name,
   ScrewValidSampler::kinematic_model = kinematic_model_;
 }
 
-bool APMotionPlanner::plan(const APPlanningRequest& req,
-                           APPlanningResponse& res) {
+bool ScrewPlanner::plan(const APPlanningRequest& req, APPlanningResponse& res) {
   // Set response to failing case
   res.joint_trajectory.joint_names.clear();
   res.joint_trajectory.points.clear();
@@ -88,7 +87,7 @@ bool APMotionPlanner::plan(const APPlanningRequest& req,
   return false;
 }
 
-bool APMotionPlanner::setupStateSpace(const APPlanningRequest& req) {
+bool ScrewPlanner::setupStateSpace(const APPlanningRequest& req) {
   state_space_.reset();
 
   // construct the state space we are planning in
@@ -127,8 +126,8 @@ bool APMotionPlanner::setupStateSpace(const APPlanningRequest& req) {
   return true;
 }
 
-bool APMotionPlanner::setSpaceParameters(const APPlanningRequest& req,
-                                         ompl::base::StateSpacePtr& space) {
+bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
+                                      ompl::base::StateSpacePtr& space) {
   // We need to transform the screw to be in the starting frame
   geometry_msgs::TransformStamped tf_msg = getStartTF(req);
   auto transformed_screw =
@@ -167,7 +166,7 @@ bool APMotionPlanner::setSpaceParameters(const APPlanningRequest& req,
   return true;
 }
 
-affordance_primitives::TransformStamped APMotionPlanner::getStartTF(
+affordance_primitives::TransformStamped ScrewPlanner::getStartTF(
     const APPlanningRequest& req) {
   geometry_msgs::TransformStamped tf_msg;
 
@@ -197,7 +196,7 @@ affordance_primitives::TransformStamped APMotionPlanner::getStartTF(
   return tf_msg;
 }
 
-bool APMotionPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space) {
+bool ScrewPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space) {
   // Create the SimpleSetup class
   ss_ = std::make_shared<og::SimpleSetup>(space);
 
@@ -216,7 +215,7 @@ bool APMotionPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space) {
   return true;
 }
 
-bool APMotionPlanner::findStartGoalStates(
+bool ScrewPlanner::findStartGoalStates(
     const APPlanningRequest& req, const size_t num_start, const size_t num_goal,
     std::vector<std::vector<double>>& start_configs,
     std::vector<std::vector<double>>& goal_configs) {
@@ -253,7 +252,7 @@ bool APMotionPlanner::findStartGoalStates(
   return start_configs.size() > 0 && goal_configs.size() > 0;
 }
 
-bool APMotionPlanner::findGoalStates(
+bool ScrewPlanner::findGoalStates(
     const APPlanningRequest& req, const size_t num_goal,
     std::vector<std::vector<double>>& start_configs,
     std::vector<std::vector<double>>& goal_configs) {
@@ -284,7 +283,7 @@ bool APMotionPlanner::findGoalStates(
   return goal_configs.size() > 0;
 }
 
-void APMotionPlanner::increaseStateList(
+void ScrewPlanner::increaseStateList(
     const affordance_primitives::Pose& pose,
     std::vector<std::vector<double>>& state_list) {
   // Try to solve the IK
@@ -303,9 +302,9 @@ void APMotionPlanner::increaseStateList(
   }
 }
 
-void APMotionPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
-                                       const APPlanningRequest& req,
-                                       APPlanningResponse& res) {
+void ScrewPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
+                                    const APPlanningRequest& req,
+                                    APPlanningResponse& res) {
   // We can stop if the trajectory doesn't have points
   if (solution.getStateCount() < 2) {
     return;

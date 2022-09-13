@@ -1,9 +1,9 @@
-#include <ap_planning/ap_planning.hpp>
+#include <ap_planning/naive_planner.hpp>
 
 namespace ap_planning {
-APPlanner::APPlanner(const ros::NodeHandle& nh) { nh_ = nh; }
+NaivePlanner::NaivePlanner(const ros::NodeHandle& nh) { nh_ = nh; }
 
-bool APPlanner::initialize() {
+bool NaivePlanner::initialize() {
   // Read the solver name from the parameter server
   std::string ik_solver_name;
   if (!nh_.getParam(ros::this_node::getName() + "/ik_solver_name",
@@ -24,7 +24,7 @@ bool APPlanner::initialize() {
   return ik_solver_->initialize(nh_);
 }
 
-ap_planning::Result APPlanner::plan(
+ap_planning::Result NaivePlanner::plan(
     const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
     const moveit::core::RobotStatePtr& start_state, const std::string& ee_name,
     trajectory_msgs::JointTrajectory& joint_trajectory) {
@@ -36,7 +36,7 @@ ap_planning::Result APPlanner::plan(
                           joint_trajectory);
 }
 
-ap_planning::Result APPlanner::plan(
+ap_planning::Result NaivePlanner::plan(
     const affordance_primitive_msgs::AffordancePrimitiveGoal& ap_goal,
     const moveit::core::RobotStatePtr& start_state,
     trajectory_msgs::JointTrajectory& joint_trajectory) {

@@ -1,8 +1,8 @@
 
 ///////////////////////////////////////////////////////////////////////////////
-//      Title     : ap_planning.hpp
+//      Title     : naive_planner.hpp
 //      Project   : ap_planning
-//      Created   : 09/13/2022
+//      Created   : 07/28/2022
 //      Author    : Adam Pettinger
 //      Copyright : Copyright© The University of Texas at Austin, 2014-2022. All
 //      rights reserved.
@@ -33,6 +33,47 @@
 
 #pragma once
 
-#include <ap_planning/ap_planning_common.hpp>
-#include <ap_planning/naive_planner.hpp>
-#include <ap_planning/screw_planner.hpp>
+#include <pluginlib/class_loader.h>
+#include <ros/ros.h>
+#include <ap_planning/ik_solver_base.hpp>
+
+namespace ap_planning {
+/**
+ * Handles planning an AP with a screw-based primitive
+ * This is mostly just holding an "IKSolver" type object, but handles the plugin
+ * loading internally
+ *
+ */
+class NaivePlanner {
+ public:
+  /** Constructor
+   *
+   * @param nh ROS node handle
+   */
+  NaivePlanner(const ros::NodeHandle& nh);
+  ~NaivePlanner(){};
+
+  bool initialize();
+
+  ap_planning::Result plan(
+      const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
+      const moveit::core::RobotStatePtr& start_state,
+      const std::string& ee_name,
+      trajectory_msgs::JointTrajectory& joint_trajectory);
+
+  ap_planning::Result plan(
+      const affordance_primitive_msgs::AffordancePrimitiveGoal& ap_goal,
+      const moveit::core::RobotStatePtr& start_state,
+      trajectory_msgs::JointTrajectory& joint_trajectory);
+
+ protected:
+  // node handle
+  ros::NodeHandle nh_;
+  ros::ServiceServer planning_server_;
+
+  // This is the bread and butter
+  std::shared_ptr<pluginlib::ClassLoader<ap_planning::IKSolverBase>>
+      solver_loader_;
+  boost::shared_ptr<ap_planning::IKSolverBase> ik_solver_;
+};
+}  // namespace ap_planning

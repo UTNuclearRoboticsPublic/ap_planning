@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////
-//      Title     : screw_motion_planner.hpp
+//      Title     : screw_planner.hpp
 //      Project   : ap_planning
 //      Created   : 08/23/2022
 //      Author    : Adam Pettinger
@@ -46,11 +46,10 @@ namespace ap_planning {
 /**
  * Plans a screw motion using OMPL's PRM
  */
-class APMotionPlanner {
+class ScrewPlanner {
  public:
-  APMotionPlanner(
-      const std::string& move_group_name,
-      const std::string& robot_description_name = "robot_description");
+  ScrewPlanner(const std::string& move_group_name,
+               const std::string& robot_description_name = "robot_description");
 
   // TODO: allow taking current pose instead of generating them
   bool plan(const APPlanningRequest& req, APPlanningResponse& res);

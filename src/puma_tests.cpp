@@ -28,7 +28,7 @@
 #include <ap_planning/state_sampling.hpp>
 #include <ap_planning/state_utils.hpp>
 
-#include <ap_planning/screw_motion_planner.hpp>
+#include <ap_planning/screw_planner.hpp>
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
   single_request.screw_msg.is_pure_translation = true;
   planning_queue.push(single_request);
 
-  ap_planning::APMotionPlanner ap_planner("puma_arm_and_base");
+  ap_planning::ScrewPlanner ap_planner("puma_arm_and_base");
 
   // Plan each screw request
   while (planning_queue.size() > 0 && ros::ok()) {
