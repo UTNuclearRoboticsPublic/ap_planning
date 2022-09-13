@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////
-//      Title     : ik_solver_base.hpp
+//      Title     : ik_solver.hpp
 //      Project   : ap_planning
 //      Created   : 07/27/2022
 //      Author    : Adam Pettinger
@@ -32,27 +32,38 @@
 
 #pragma once
 
-#include <string>
-
 #include <ros/ros.h>
+#include <ap_planning/ik_solver_base.hpp>
 
-#include <affordance_primitive_msgs/AffordancePrimitiveAction.h>
-#include <affordance_primitive_msgs/AffordanceTrajectory.h>
-#include <moveit/robot_model/robot_model.h>
-#include <moveit/robot_model_loader/robot_model_loader.h>
-#include <moveit/robot_state/robot_state.h>
-#include <ap_closed_chain_planning/ap_planning_common.hpp>
+namespace ap_planning {
 
-namespace ap_closed_chain_planning {
+// Some defaults if parameters are not found
+const double JOINT_TOLERANCE = 0.05;  // radians
+const double WAYPOINT_DIST = 0.005;   // meters
+const double WAYPOINT_ANG = 0.01;     // radians, ~0.5 degrees
+const double CONDITION_NUM_LIMIT = 100;
+
 /**
- * Virtual base class for
+ * Estimates the state of a task
  */
-class IKSolverBase {
+class IKSolver : public IKSolverBase {
  public:
-  virtual bool initialize(const ros::NodeHandle& nh) = 0;
+  IKSolver(){};
+  ~IKSolver(){};
 
-  /** Solves 1 IK request and updates the passed robot state and trajectory
-   * point
+  /** Initializes the solver by looking up ROS parameters for:
+   *
+   * Required: move_group_name
+   *
+   * Optional: robot_description_name, joint_tolerance, waypoint_dist,
+   * waypoint_ang, condition_num_limit
+   *
+   * @param nh Parameters are considered to be namespaced to this node
+   * @return False if the parameters couldn't be found, true otherwise
+   */
+  bool initialize(const ros::NodeHandle& nh) override;
+
+  /** Solves 1 IK request using BioIK with the "Minimal Displacement" subgoal
    *
    * @param jmg Valid JointModelGroup
    * @param target_pose The pose to solve for
@@ -60,14 +71,17 @@ class IKSolverBase {
    * @param robot_state The robot state. It is updated so the positions match
    * the solution
    * @param point The trajectory point to fill out
+   * @return True if a solution was found, false otherwise
    */
-  virtual bool solveIK(const moveit::core::JointModelGroup* jmg,
-                       const geometry_msgs::Pose& target_pose,
-                       const std::string& ee_frame,
-                       moveit::core::RobotState& robot_state,
-                       trajectory_msgs::JointTrajectoryPoint& point) = 0;
+  bool solveIK(const moveit::core::JointModelGroup* jmg,
+               const geometry_msgs::Pose& target_pose,
+               const std::string& ee_frame,
+               moveit::core::RobotState& robot_state,
+               trajectory_msgs::JointTrajectoryPoint& point) override;
 
-  /** Verifies that the robot transitioning from A to B is valid
+  /** Verifies a single joint state transition
+   *
+   * Checks each joint doesn't move too much, and TODO checks for singularity
    *
    * @param point_a The start point (joint state)
    * @param point_b The end point (joint state)
@@ -75,11 +89,11 @@ class IKSolverBase {
    * @param state_b The end robot state
    * @return The result
    */
-  virtual ap_planning::Result verifyTransition(
+  ap_planning::Result verifyTransition(
       const trajectory_msgs::JointTrajectoryPoint& point_a,
       const trajectory_msgs::JointTrajectoryPoint& point_b,
       const moveit::core::JointModelGroup* jmg,
-      const moveit::core::RobotState& state_b) = 0;
+      const moveit::core::RobotState& state_b) override;
 
   /** Plans a joint trajectory based on an affordance trajectory
    *
@@ -89,11 +103,11 @@ class IKSolverBase {
    * @param joint_trajectory The joint trajectory that will be populated
    * @return The result
    */
-  virtual ap_planning::Result plan(
+  ap_planning::Result plan(
       const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
       const moveit::core::RobotStatePtr& start_state,
       const std::string& ee_name,
-      trajectory_msgs::JointTrajectory& joint_trajectory) = 0;
+      trajectory_msgs::JointTrajectory& joint_trajectory) override;
 
   /** Plans a joint trajectory based on an Affordance Primitive goal
    *
@@ -102,17 +116,32 @@ class IKSolverBase {
    * @param joint_trajectory The joint trajectory that will be populated
    * @return The result
    */
-  virtual ap_planning::Result plan(
+  ap_planning::Result plan(
       const affordance_primitive_msgs::AffordancePrimitiveGoal& ap_goal,
       const moveit::core::RobotStatePtr& start_state,
-      trajectory_msgs::JointTrajectory& joint_trajectory) = 0;
-
-  virtual ~IKSolverBase(){};
+      trajectory_msgs::JointTrajectory& joint_trajectory) override;
 
  protected:
-  IKSolverBase(){};
-  ros::NodeHandle nh_;
-  moveit::core::JointModelGroup* joint_model_group_;
-  moveit::core::RobotModelPtr kinematic_model_;
+  affordance_primitives::APScrewExecutor screw_executor_;
+
+  // Planning parameters
+  double joint_tolerance_;
+  double waypoint_dist_, waypoint_ang_;
+  double condition_num_limit_;
+
+  size_t calculateNumWaypoints(
+      const affordance_primitive_msgs::ScrewStamped& screw_msg,
+      const geometry_msgs::TransformStamped& tf_msg, const double theta);
+
+  /** General check to make sure 2 joint states are relatively close together
+   *
+   * @param point_a The start point (joint state)
+   * @param point_b The end point (joint state)
+   * @return The result
+   */
+  bool checkPointsAreClose(
+      const trajectory_msgs::JointTrajectoryPoint& point_a,
+      const trajectory_msgs::JointTrajectoryPoint& point_b);
 };
-}  // namespace ap_closed_chain_planning
+
+}  // namespace ap_planning

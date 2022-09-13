@@ -1,0 +1,15 @@
+<launch>
+  <arg name="debug" default="false" />
+  <arg unless="$(arg debug)" name="launch_prefix" value="" />
+  <arg     if="$(arg debug)" name="launch_prefix" value="xterm -e gdb --args" />
+
+  <include file="$(find puma560_moveit_config)/launch/planning_context.launch">
+    <arg name="load_robot_description" value="true"/>
+  </include>
+
+  <include file="$(find puma560_moveit_config)/launch/demo.launch" />
+
+  <node name="puma_tests" pkg="ap_planning" type="puma_tests" respawn="false" output="screen" launch-prefix="$(arg launch_prefix)">
+    <rosparam command="load" file="$(find puma560_moveit_config)/config/kinematics.yaml"/>
+  </node>
+</launch>

@@ -1,6 +1,0 @@
-
-<library path="lib/libap_closed_chain_planning">
-  <class type="ap_closed_chain_planning::IKSolver" base_class_type="ap_closed_chain_planning::IKSolverBase">
-    <description>Uses BioIK to iteratively solve a screw planning problem</description>
-  </class>
-</library>
