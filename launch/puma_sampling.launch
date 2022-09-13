@@ -9,7 +9,7 @@
 
   <include file="$(find puma560_moveit_config)/launch/demo.launch" />
 
-  <node name="puma_tests" pkg="sample_based_planning" type="puma_tests" respawn="false" output="screen" launch-prefix="$(arg launch_prefix)">
+  <node name="puma_tests" pkg="ap_planning" type="puma_tests" respawn="false" output="screen" launch-prefix="$(arg launch_prefix)">
     <rosparam command="load" file="$(find puma560_moveit_config)/config/kinematics.yaml"/>
   </node>
 </launch>

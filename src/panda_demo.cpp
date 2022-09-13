@@ -25,10 +25,10 @@
 #include <affordance_primitives/screw_model/affordance_utils.hpp>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
 #include <affordance_primitives/screw_planning/screw_planning.hpp>
-#include <sample_based_planning/state_sampling.hpp>
-#include <sample_based_planning/state_utils.hpp>
+#include <ap_planning/state_sampling.hpp>
+#include <ap_planning/state_utils.hpp>
 
-#include <sample_based_planning/screw_motion_planner.hpp>
+#include <ap_planning/screw_motion_planner.hpp>
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
@@ -51,7 +51,7 @@ void show_screw(const affordance_primitives::ScrewStamped &screw_msg,
 void show_trajectory(const trajectory_msgs::JointTrajectory &traj,
                      moveit_visual_tools::MoveItVisualTools &visual_tools) {
   moveit_msgs::DisplayTrajectory joint_traj;
-  joint_traj.model_id = "Puma560";
+  joint_traj.model_id = "panda";
   joint_traj.trajectory.push_back(moveit_msgs::RobotTrajectory());
   joint_traj.trajectory.at(0).joint_trajectory = traj;
 
@@ -61,7 +61,7 @@ void show_trajectory(const trajectory_msgs::JointTrajectory &traj,
   start_msg.joint_state.position = first_waypoint.positions;
   joint_traj.trajectory_start = start_msg;
 
-  joint_traj.trajectory.at(0).joint_trajectory.header.frame_id = "map";
+  joint_traj.trajectory.at(0).joint_trajectory.header.frame_id = "panda_link0";
 
   int time = 0;
 
@@ -74,14 +74,14 @@ void show_trajectory(const trajectory_msgs::JointTrajectory &traj,
 }
 
 int main(int argc, char **argv) {
-  ros::init(argc, argv, "sample_based_planning");
+  ros::init(argc, argv, "ap_planning");
   ros::NodeHandle nh;
   ros::AsyncSpinner spinner(2);
   spinner.start();
 
   ros::Duration(2.0).sleep();
 
-  moveit_visual_tools::MoveItVisualTools visual_tools("map");
+  moveit_visual_tools::MoveItVisualTools visual_tools("panda_link0");
   visual_tools.deleteAllMarkers();
   visual_tools.loadRemoteControl();
   visual_tools.setRobotStateTopic("/display_robot_state");
@@ -89,8 +89,8 @@ int main(int argc, char **argv) {
 
   std::queue<ap_planning::APPlanningRequest> planning_queue;
   ap_planning::APPlanningRequest single_request;
-  single_request.screw_msg.header.frame_id = "map";
-  single_request.ee_frame_name = "link7";
+  single_request.screw_msg.header.frame_id = "panda_link0";
+  single_request.ee_frame_name = "panda_link8";
 
   // For now, all requests start at same point
   single_request.start_pose.pose.position.x = 0.5;
@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
   single_request.screw_msg.is_pure_translation = true;
   planning_queue.push(single_request);
 
-  ap_planning::APMotionPlanner ap_planner("puma_arm_and_base");
+  ap_planning::APMotionPlanner ap_planner("panda_arm");
 
   // Plan each screw request
   while (planning_queue.size() > 0 && ros::ok()) {

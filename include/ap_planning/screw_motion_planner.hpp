@@ -34,8 +34,8 @@
 
 #include <ompl/geometric/SimpleSetup.h>
 #include <ompl/geometric/planners/prm/PRM.h>
-#include <sample_based_planning/state_sampling.hpp>
-#include <sample_based_planning/state_utils.hpp>
+#include <ap_planning/state_sampling.hpp>
+#include <ap_planning/state_utils.hpp>
 
 #include <optional>
 

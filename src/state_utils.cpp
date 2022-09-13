@@ -1,6 +1,6 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <affordance_primitives/screw_planning/screw_planning.hpp>
-#include <sample_based_planning/state_utils.hpp>
+#include <ap_planning/state_utils.hpp>
 
 namespace ap_planning {
 bool checkDuplicateState(const std::vector<std::vector<double>> &states,

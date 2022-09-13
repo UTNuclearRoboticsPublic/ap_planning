@@ -1,10 +1,10 @@
 #include <bio_ik/bio_ik.h>
 #include <affordance_primitives/screw_model/screw_execution.hpp>
-#include <ap_closed_chain_planning/ik_solver.hpp>
+#include <ap_planning/ik_solver.hpp>
 
 #include <pluginlib/class_list_macros.h>
 
-namespace ap_closed_chain_planning {
+namespace ap_planning {
 bool IKSolver::initialize(const ros::NodeHandle& nh) {
   nh_ = nh;
   const std::string n_name = ros::this_node::getName();
@@ -240,7 +240,7 @@ size_t IKSolver::calculateNumWaypoints(
   // Return whichever required more waypoints
   return std::max(wps_ang, wps_lin);
 }
-}  // namespace ap_closed_chain_planning
+}  // namespace ap_planning
 
-PLUGINLIB_EXPORT_CLASS(ap_closed_chain_planning::IKSolver,
-                       ap_closed_chain_planning::IKSolverBase);
+PLUGINLIB_EXPORT_CLASS(ap_planning::IKSolver,
+                       ap_planning::IKSolverBase);

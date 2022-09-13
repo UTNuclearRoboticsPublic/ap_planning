@@ -1,5 +1,5 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
-#include <sample_based_planning/state_sampling.hpp>
+#include <ap_planning/state_sampling.hpp>
 
 namespace ap_planning {
 

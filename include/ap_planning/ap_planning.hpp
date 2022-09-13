@@ -35,7 +35,7 @@
 
 #include <pluginlib/class_loader.h>
 #include <ros/ros.h>
-#include <ap_closed_chain_planning/ik_solver_base.hpp>
+#include <ap_planning/ik_solver_base.hpp>
 
 namespace ap_planning {
 /**
@@ -73,8 +73,8 @@ class APPlanner {
 
   // This is the bread and butter
   std::shared_ptr<
-      pluginlib::ClassLoader<ap_closed_chain_planning::IKSolverBase>>
+      pluginlib::ClassLoader<ap_planning::IKSolverBase>>
       solver_loader_;
-  boost::shared_ptr<ap_closed_chain_planning::IKSolverBase> ik_solver_;
+  boost::shared_ptr<ap_planning::IKSolverBase> ik_solver_;
 };
 }  // namespace ap_planning

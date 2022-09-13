@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>ap_closed_chain_planning</name>
+  <name>ap_planning</name>
   <version>0.0.0</version>
   <description>For using closed chain planning via IK solving</description>
 
@@ -16,11 +16,19 @@
   <depend>affordance_primitives</depend>
   <depend>bio_ik</depend>
   <depend>moveit_core</depend>
+  <depend>moveit_ros_planning_interface</depend>
+  <depend>moveit_visual_tools</depend>
+  <depend>ompl</depend>
   <depend>pluginlib</depend>
+  <depend>roscpp</depend>
+  <depend>tf2_eigen</depend>
+
+  <exec_depend>panda_moveit_config</exec_depend>
+  <exec_depend>puma560_moveit_config</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <build_type>catkin</build_type>
-    <ap_closed_chain_planning plugin="${prefix}/plugins.xml" />
+    <ap_planning plugin="${prefix}/plugins.xml" />
   </export>
 </package>

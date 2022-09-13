@@ -1,5 +1,5 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
-#include <sample_based_planning/screw_motion_planner.hpp>
+#include <ap_planning/screw_motion_planner.hpp>
 
 namespace ap_planning {
 APMotionPlanner::APMotionPlanner(const std::string& move_group_name,
