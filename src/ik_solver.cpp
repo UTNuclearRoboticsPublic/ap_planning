@@ -14,6 +14,8 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
   nh_.param<std::string>(n_name + "/robot_description_name",
                          robot_description_name, "/robot_description");
   if (!nh_.getParam(n_name + "/move_group_name", move_group_name)) {
+    ROS_ERROR_STREAM("Could not find parameter: "
+                     << std::string(n_name + "/move_group_name"));
     return false;
   }
 
@@ -29,10 +31,22 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
       robot_description_name);
   kinematic_model_ = robot_model_loader.getModel();
   if (!kinematic_model_) {
+    ROS_ERROR("Could not load RobotModel");
     return false;
   }
   joint_model_group_ = kinematic_model_->getJointModelGroup(move_group_name);
   if (!joint_model_group_) {
+    ROS_ERROR_STREAM("Could not find joint model group: " << move_group_name);
+    return false;
+  }
+
+  ik_solver_ = joint_model_group_->getSolverInstance();
+  if (!ik_solver_) {
+    ROS_ERROR("Could not get IK Solver");
+    return false;
+  } else if (!ik_solver_->supportsGroup(joint_model_group_)) {
+    ROS_ERROR_STREAM(
+        "IK Solver doesn't support group: " << joint_model_group_->getName());
     return false;
   }
 

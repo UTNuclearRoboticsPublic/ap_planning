@@ -8,6 +8,8 @@ bool NaivePlanner::initialize() {
   std::string ik_solver_name;
   if (!nh_.getParam(ros::this_node::getName() + "/ik_solver_name",
                     ik_solver_name)) {
+    ROS_ERROR_STREAM("Could not load parameter: " << std::string(
+                         ros::this_node::getName() + "/ik_solver_name"));
     return false;
   }
 

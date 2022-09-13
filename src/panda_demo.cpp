@@ -25,10 +25,7 @@
 #include <affordance_primitives/screw_model/affordance_utils.hpp>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
 #include <affordance_primitives/screw_planning/screw_planning.hpp>
-#include <ap_planning/state_sampling.hpp>
-#include <ap_planning/state_utils.hpp>
-
-#include <ap_planning/screw_planner.hpp>
+#include <ap_planning/ap_planning.hpp>
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
@@ -79,6 +76,16 @@ int main(int argc, char **argv) {
   ros::AsyncSpinner spinner(2);
   spinner.start();
 
+  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
+  const moveit::core::RobotModelPtr &kinematic_model =
+      robot_model_loader.getModel();
+
+  moveit::core::RobotStatePtr kinematic_state(
+      new moveit::core::RobotState(kinematic_model));
+  std::vector<double> default_joint_state{0, -0.785, 0,    -2.356,
+                                          0, 1.571,  0.785};
+  kinematic_state->setJointGroupPositions("panda_arm", default_joint_state);
+
   ros::Duration(2.0).sleep();
 
   moveit_visual_tools::MoveItVisualTools visual_tools("panda_link0");
@@ -105,8 +112,7 @@ int main(int argc, char **argv) {
   planning_queue.push(single_request);
 
   // This time, send a joint configuration
-  single_request.start_joint_state =
-      std::vector<double>{0, -0.785, 0, -2.356, 0, 1.571, 0.785};
+  single_request.start_joint_state = default_joint_state;
   planning_queue.push(single_request);
 
   single_request.start_joint_state.clear();
@@ -133,38 +139,57 @@ int main(int argc, char **argv) {
   planning_queue.push(single_request);
 
   ap_planning::ScrewPlanner ap_planner("panda_arm");
+  ap_planning::NaivePlanner naive_planner(nh);
+  if (!naive_planner.initialize()) {
+    ROS_ERROR_STREAM("Init failed");
+    return EXIT_FAILURE;
+  }
 
   // Plan each screw request
   while (planning_queue.size() > 0 && ros::ok()) {
     auto req = planning_queue.front();
     planning_queue.pop();
     visual_tools.prompt(
-        "Press 'next' in the RvizVisualToolsGui window to start the demo");
+        "Press 'next' in the RvizVisualToolsGui window to plan next screw");
 
     show_screw(req.screw_msg, visual_tools);
 
     ap_planning::APPlanningResponse result;
-    if (ap_planner.plan(req, result)) {
-      std::cout << "\n\n\nSuccess!!\n\n";
+    bool success = ap_planner.plan(req, result);
+    if (success) {
+      std::cout << "\n\n\nScrew planning: Success!!\n\n";
+      std::cout << "Trajectory is: " << result.percentage_complete * 100
+                << "% complete, and has length: " << result.path_length << "\n";
+
+      show_trajectory(result.joint_trajectory, visual_tools);
     } else {
-      std::cout << "\n\n\nFail!!\n\n";
+      std::cout << "\n\n\nScrew planning: Fail!!\n\n";
       continue;
     }
 
-    std::cout << "Trajectory is: " << result.percentage_complete * 100
-              << "% complete, and has length: " << result.path_length << "\n";
+    // Now move to naive planner
+    visual_tools.prompt(
+        "Press 'next' in the RvizVisualToolsGui window to plan again using "
+        "naive planner");
 
-    show_trajectory(result.joint_trajectory, visual_tools);
+    // Create the AP goal message
+    affordance_primitive_msgs::AffordancePrimitiveGoal ap_goal;
+    ap_goal.moving_frame_name = req.ee_frame_name;
+    ap_goal.moving_frame_source = ap_goal.LOOKUP;
+    ap_goal.theta_dot = 0.3;
+    ap_goal.screw_distance = req.theta;
+    ap_goal.screw = req.screw_msg;
 
-    // }
-    // ROS_INFO_STREAM("Num success: "
-    //                 << success_count
-    //                 << " (with num post reject = " << num_post_rejections <<
-    //                 ")"
-    //                 << "\nWith #start = " << start_configs.size()
-    //                 << "\n#end = " << goal_configs.size()
-    //                 << "\nAvg time = " << total_success_time / success_count
-    //                 << "\nMax found time = " << max_found_time);
+    // Try planning
+    trajectory_msgs::JointTrajectory naive_output;
+    auto naive_res = naive_planner.plan(ap_goal, kinematic_state, naive_output);
+    if (naive_res == ap_planning::SUCCESS) {
+      std::cout << "\n\n\nNaive planning: Success!!\n\n";
+      show_trajectory(naive_output, visual_tools);
+    } else {
+      std::cout << "\n\n\nNaive planning: Fail!!\n\n";
+      continue;
+    }
   }
 
   ros::shutdown();
