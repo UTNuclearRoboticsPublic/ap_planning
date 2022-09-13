@@ -103,12 +103,22 @@ bool APMotionPlanner::setupStateSpace(const APPlanningRequest& req) {
   // Go through joint group and add bounds for each joint
   for (const moveit::core::JointModel* joint :
        joint_model_group_->getActiveJointModels()) {
-    const auto& bounds = joint->getVariableBounds(joint->getName());
-    if (bounds.position_bounded_) {
-      joint_space->addDimension(bounds.min_position_, bounds.max_position_);
+    const auto jt = joint->getType();
+
+    if (jt == joint->PLANAR) {
+      joint_space->addDimension(-1e3, 1e3);
+      joint_space->addDimension(-1e3, 1e3);
+      joint_space->addDimension(-M_PI, M_PI);
+    } else if (jt == joint->REVOLUTE || jt == joint->PRISMATIC) {
+      const auto& bounds = joint->getVariableBounds(joint->getName());
+      if (bounds.position_bounded_) {
+        joint_space->addDimension(bounds.min_position_, bounds.max_position_);
+      } else {
+        // TODO: Add warning or throw?
+        return false;
+      }
     } else {
       // TODO: Add warning or throw?
-      return false;
     }
   }
 

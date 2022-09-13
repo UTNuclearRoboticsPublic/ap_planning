@@ -65,7 +65,10 @@ target_link_libraries(${PROJECT_NAME} ${OMPL_LIBRARIES} ${catkin_LIBRARIES} ${Bo
 add_executable(panda_demo src/panda_demo.cpp)
 target_link_libraries(panda_demo ${PROJECT_NAME})
 
-install(TARGETS ${PROJECT_NAME} panda_demo
+add_executable(puma_tests src/puma_tests.cpp)
+target_link_libraries(puma_tests ${PROJECT_NAME})
+
+install(TARGETS ${PROJECT_NAME} panda_demo puma_tests
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY include/${PROJECT_NAME}/
