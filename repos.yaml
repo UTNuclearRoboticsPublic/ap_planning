@@ -1,0 +1,21 @@
+repositories:
+  affordance_primitives:
+    type: git
+    url: https://github.com/UTNuclearRobotics/affordance_primitives.git
+    version: noetic-screw_planning
+  bio_ik:
+    type: git
+    url: https://github.com/TAMS-Group/bio_ik.git
+    version: master
+  panda_moveit_config:
+    type: git
+    url: https://github.com/ros-planning/panda_moveit_config.git
+    version: noetic-devel
+  puma560_description:
+    type: git
+    url: https://github.com/UTNuclearRobotics/puma560_description.git
+    version: add_collisions
+  puma560_moveit_config:
+    type: git
+    url: https://github.com/UTNuclearRobotics/puma560_moveit_config.git
+    version: main

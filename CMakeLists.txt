@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(ap_closed_chain_planning)
+project(ap_planning)
 
 add_compile_options(-std=c++17)
 if(NOT "${CMAKE_CXX_STANDARD}")
@@ -15,11 +15,16 @@ find_package(catkin REQUIRED COMPONENTS
   affordance_primitives
   bio_ik
   moveit_core
+  moveit_ros_planning_interface
+  moveit_visual_tools
   pluginlib
+  roscpp
+  tf2_eigen
 )
 
 ## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+find_package(ompl REQUIRED)
+find_package(Boost REQUIRED system filesystem date_time thread serialization program_options)
 
 ###################################
 ## catkin specific configuration ##
@@ -40,7 +45,10 @@ catkin_package(
   affordance_primitives
   bio_ik
   moveit_core
-#  DEPENDS system_lib
+  moveit_ros_planning_interface
+  roscpp
+ DEPENDS
+  OMPL
 )
 
 ###########
@@ -53,62 +61,34 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
 )
+include_directories(SYSTEM
+                    ${catkin_INCLUDE_DIRS}
+                    ${Boost_INCLUDE_DIRS}
+                    ${OMPL_INCLUDE_DIRS})
 
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
-  src/ap_planning.cpp
   src/ik_solver.cpp
+  src/naive_planner.cpp
+  src/screw_planner.cpp
+  src/state_sampling.cpp
+  src/state_utils.cpp
 )
+add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(${PROJECT_NAME} ${OMPL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_executable(panda_demo src/panda_demo.cpp)
+target_link_libraries(panda_demo ${PROJECT_NAME})
 
-## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/ap_closed_chain_planning_node.cpp)
-
-## Rename C++ executable without prefix
-## The above recommended prefix causes long target names, the following renames the
-## target back to the shorter version for ease of user use
-## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
-# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
-
-## Add cmake target dependencies of the executable
-## same as for the library above
-# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Specify libraries to link a library or executable target against
-# target_link_libraries(${PROJECT_NAME}_node
-#   ${catkin_LIBRARIES}
-# )
+add_executable(puma_tests src/puma_tests.cpp)
+target_link_libraries(puma_tests ${PROJECT_NAME})
 
 #############
 ## Install ##
 #############
 
-# all install targets should use catkin DESTINATION variables
-# See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
-
-## Mark executable scripts (Python etc.) for installation
-## in contrast to setup.py, you can choose the destination
-# catkin_install_python(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
-
-## Mark executables for installation
-## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
-# install(TARGETS ${PROJECT_NAME}_node
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
-
-## Mark libraries for installation
-## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
 install(
-  TARGETS ${PROJECT_NAME}
+  TARGETS ${PROJECT_NAME} panda_demo puma_tests
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
@@ -128,7 +108,7 @@ install(FILES plugins.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_ap_closed_chain_planning.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_ap_planning.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
