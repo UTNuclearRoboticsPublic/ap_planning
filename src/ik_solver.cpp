@@ -121,44 +121,24 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
                        const std::string& ee_frame,
                        moveit::core::RobotState& robot_state,
                        trajectory_msgs::JointTrajectoryPoint& point) {
-  // Set up BioIK options
-  bio_ik::BioIKKinematicsQueryOptions ik_options;
-  ik_options.replace = true;
-
-  // Set up Pose goal
-  auto* pose_goal = new bio_ik::PoseGoal();
-  pose_goal->setLinkName(ee_frame);
-  pose_goal->setPosition(tf2::Vector3(
-      target_pose.position.x, target_pose.position.y, target_pose.position.z));
-  pose_goal->setOrientation(
-      tf2::Quaternion(target_pose.orientation.x, target_pose.orientation.y,
-                      target_pose.orientation.z, target_pose.orientation.w));
-  ik_options.goals.emplace_back(pose_goal);
-
-  // Avoid joint limits
-  auto* avoid_joint_limits_goal = new bio_ik::AvoidJointLimitsGoal();
-  ik_options.goals.emplace_back(avoid_joint_limits_goal);
-
-  // Minimize the displacement
-  auto* minimal_displacement_goal = new bio_ik::MinimalDisplacementGoal();
-  ik_options.goals.emplace_back(minimal_displacement_goal);
-
   // Solve the IK
-  bool found_ik = false;
-  try {
-    found_ik = robot_state.setFromIK(
-        jmg, target_pose, ee_frame, 0.0,
-        moveit::core::GroupStateValidityCallbackFn(), ik_options);
-  } catch (std::runtime_error& ex) {
-    ROS_WARN_STREAM_THROTTLE(5, "Could not solve IK: " << ex.what());
+  std::vector<double> ik_solution, seed_state;
+  robot_state.copyJointGroupPositions(jmg, seed_state);
+  moveit_msgs::MoveItErrorCodes err;
+  if (!ik_solver_->searchPositionIK(target_pose, seed_state, 0.05, ik_solution,
+                                    err)) {
+    ROS_WARN_STREAM_THROTTLE(5, "Could not solve IK");
     return false;
   }
 
-  // Copy to the point
-  robot_state.copyJointGroupPositions(jmg, point.positions);
+  // Update the robot state
+  robot_state.setJointGroupPositions(jmg, ik_solution);
   robot_state.update();
 
-  return found_ik;
+  // Copy to the point
+  robot_state.copyJointGroupPositions(jmg, point.positions);
+
+  return true;
 }
 
 ap_planning::Result IKSolver::plan(

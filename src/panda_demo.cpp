@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
     affordance_primitive_msgs::AffordancePrimitiveGoal ap_goal;
     ap_goal.moving_frame_name = req.ee_frame_name;
     ap_goal.moving_frame_source = ap_goal.LOOKUP;
-    ap_goal.theta_dot = 0.3;
+    ap_goal.theta_dot = 0.1;
     ap_goal.screw_distance = req.theta;
     ap_goal.screw = req.screw_msg;
 
