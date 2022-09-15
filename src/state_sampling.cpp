@@ -19,6 +19,8 @@ ScrewValidSampler::ScrewValidSampler(const ob::SpaceInformation *si)
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
       *kinematic_model->getJointModelGroup(mg_string));
 
+  ik_solver_ = joint_model_group_->getSolverInstance();
+
   std::string screw_msg_string, pose_msg_string;
   si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
   si->getStateSpace()->params().getParam("pose_param", pose_msg_string);
@@ -56,19 +58,22 @@ bool ScrewValidSampler::sample(ob::State *state) {
   geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
   // Calculate IK for the pose
-  bool found_ik =
-      kinematic_state_->setFromIK(joint_model_group_.get(), pose_msg);
+  std::vector<double> ik_solution, seed_state;
+  kinematic_state_->setToRandomPositions();
+  kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
+                                            seed_state);
+  moveit_msgs::MoveItErrorCodes err;
+  kinematics::KinematicsQueryOptions opts;
+  // opts.return_approximate_solution = true;
+  bool found_ik = ik_solver_->searchPositionIK(pose_msg, seed_state, 0.05,
+                                               ik_solution, err, opts);
   if (!found_ik) {
-    std::cout << "no IK found\n";
     return false;
   }
 
   // Convert to robot state
-  std::vector<double> joint_values;
-  kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
-                                            joint_values);
-  for (size_t i = 0; i < joint_values.size(); ++i) {
-    robot_state[i] = joint_values[i];
+  for (size_t i = 0; i < ik_solution.size(); ++i) {
+    robot_state[i] = ik_solution[i];
   }
   return true;
 }
@@ -90,6 +95,8 @@ ScrewSampler::ScrewSampler(const ob::StateSpace *state_space)
 
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
       *kinematic_model->getJointModelGroup(mg_string));
+
+  ik_solver_ = joint_model_group_->getSolverInstance();
 
   auto compound_space = state_space->as<ob::CompoundStateSpace>();
   screw_bounds_ = compound_space->getSubspace(0)
@@ -127,19 +134,22 @@ void ScrewSampler::sample(ob::State *state,
   geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
   // Solve IK for the pose
-  bool found_ik =
-      kinematic_state_->setFromIK(joint_model_group_.get(), pose_msg);
+  std::vector<double> ik_solution, seed_state;
+  kinematic_state_->setToRandomPositions();
+  kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
+                                            seed_state);
+  moveit_msgs::MoveItErrorCodes err;
+  kinematics::KinematicsQueryOptions opts;
+  // opts.return_approximate_solution = true;
+  bool found_ik = ik_solver_->searchPositionIK(pose_msg, seed_state, 0.05,
+                                               ik_solution, err, opts);
   if (!found_ik) {
-    std::cout << "no IK found\n";
     return;
   }
 
-  // Convert to robot state
-  std::vector<double> joint_values;
-  kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
-                                            joint_values);
-  for (size_t i = 0; i < joint_values.size(); ++i) {
-    robot_state[i] = joint_values[i];
+  // // Convert to robot state
+  for (size_t i = 0; i < ik_solution.size(); ++i) {
+    robot_state[i] = ik_solution[i];
   }
 }
 

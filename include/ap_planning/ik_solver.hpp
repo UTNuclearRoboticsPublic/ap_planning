@@ -63,7 +63,7 @@ class IKSolver : public IKSolverBase {
    */
   bool initialize(const ros::NodeHandle& nh) override;
 
-  /** Solves 1 IK request using BioIK with the "Minimal Displacement" subgoal
+  /** Solves 1 IK request
    *
    * @param jmg Valid JointModelGroup
    * @param target_pose The pose to solve for
@@ -95,6 +95,7 @@ class IKSolver : public IKSolverBase {
       const moveit::core::JointModelGroup* jmg,
       const moveit::core::RobotState& state_b) override;
 
+  // TODO: planning call i/o should be same across both planners!
   /** Plans a joint trajectory based on an affordance trajectory
    *
    * @param affordance_traj The Cartesian trajectory to plan for
@@ -123,6 +124,9 @@ class IKSolver : public IKSolverBase {
 
  protected:
   affordance_primitives::APScrewExecutor screw_executor_;
+
+  // This holds the kinematics solver
+  kinematics::KinematicsBasePtr ik_solver_;
 
   // Planning parameters
   double joint_tolerance_;
