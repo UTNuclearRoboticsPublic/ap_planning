@@ -10,11 +10,14 @@
     <arg name="load_robot_description" value="true"/>
   </include>
 
-  <!-- TODO: save our own RViz config file and launch it here -->
-  <include file="$(find panda_moveit_config)/launch/demo.launch" />
+  <include file="$(find panda_moveit_config)/launch/demo.launch" >
+    <arg name="use_rviz" value="false"/>
+  </include>
+
+  <node name = "panda_rviz" pkg = "rviz" type = "rviz" args = "-d $(find ap_planning)/config/panda.rviz"/>
 
   <node name="panda_sampling" pkg="ap_planning" type="panda_demo" respawn="false" output="screen" launch-prefix="$(arg launch_prefix)">
-    <rosparam command="load" file="$(find panda_moveit_config)/config/kinematics.yaml"/>
+    <rosparam command="load" file="$(find ap_planning)/config/panda_tracik_kinematics.yaml"/>
     <param name="move_group_name" type="string" value="$(arg move_group_name)" />
     <param name="ik_solver_name" type="string" value="$(arg ik_solver_name)" />
   </node>
