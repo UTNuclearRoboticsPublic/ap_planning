@@ -163,13 +163,12 @@ ap_planning::Result IKSolver::plan(
   // Make a new robot state and copy the starting state
   moveit::core::RobotStatePtr current_state(
       new moveit::core::RobotState(kinematic_model_));
-  current_state->setJointGroupPositions(joint_model_group_,
-                                        start_state);
+  current_state->setJointGroupPositions(joint_model_group_, start_state);
 
   // We will check the first IK solution is close to the starting state
   trajectory_msgs::JointTrajectoryPoint starting_point;
   current_state->copyJointGroupPositions(joint_model_group_,
-                                        starting_point.positions);
+                                         starting_point.positions);
 
   // Figure out how many waypoints there are
   const size_t num_waypoints = affordance_traj.trajectory.size();

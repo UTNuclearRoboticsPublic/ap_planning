@@ -69,8 +69,7 @@ class NaivePlanner {
    */
   ap_planning::Result plan(
       const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
-      const std::vector<double>& start_state,
-      const std::string& ee_name,
+      const std::vector<double>& start_state, const std::string& ee_name,
       APPlanningResponse& res);
 
  protected:

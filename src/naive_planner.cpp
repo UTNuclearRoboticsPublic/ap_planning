@@ -41,8 +41,7 @@ ap_planning::Result NaivePlanner::plan(
   if (!ik_solver_) {
     return ap_planning::INITIALIZATION_FAIL;
   }
-  return ik_solver_->plan(affordance_traj, start_state, ee_name,
-                          res);
+  return ik_solver_->plan(affordance_traj, start_state, ee_name, res);
 }
 
 ap_planning::Result NaivePlanner::plan(const APPlanningRequest& req,

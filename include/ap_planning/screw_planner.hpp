@@ -57,10 +57,11 @@ class ScrewPlanner {
    * @param req The planning request
    * @param res The planning response
    * @return Returns the result of the underlaying planner. Note it is possible
-   * for the planner to return success but not have reached the goal, so check the
-   * response
+   * for the planner to return success but not have reached the goal, so check
+   * the response
    */
-  ap_planning::Result plan(const APPlanningRequest& req, APPlanningResponse& res);
+  ap_planning::Result plan(const APPlanningRequest& req,
+                           APPlanningResponse& res);
 
  protected:
   ompl::base::StateSpacePtr state_space_;

@@ -19,7 +19,8 @@ ScrewPlanner::ScrewPlanner(const std::string& move_group_name,
   ScrewValidSampler::kinematic_model = kinematic_model_;
 }
 
-ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req, APPlanningResponse& res) {
+ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
+                                       APPlanningResponse& res) {
   // Set response to failing case
   res.joint_trajectory.joint_names.clear();
   res.joint_trajectory.points.clear();
