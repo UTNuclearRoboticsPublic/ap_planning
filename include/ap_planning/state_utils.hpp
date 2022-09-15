@@ -45,29 +45,6 @@
 namespace ob = ompl::base;
 
 namespace ap_planning {
-/**
- * A struct for holding all the information needed to make an AP planning
- * request
- */
-// TODO: document this: both start pose and the screw axis should be given in
-// the planning frame!!
-struct APPlanningRequest {
-  affordance_primitive_msgs::ScrewStamped screw_msg;
-  double theta;
-  std::string ee_frame_name;
-
-  // Only set one of these
-  std::vector<double> start_joint_state;
-  geometry_msgs::PoseStamped start_pose;
-};
-
-struct APPlanningResponse {
-  trajectory_msgs::JointTrajectory joint_trajectory;
-  double percentage_complete;
-  bool trajectory_is_valid;
-  double path_length;
-};
-
 /** Checks if a state is close to any in a list of others
  *
  * @param states The list of already generated states

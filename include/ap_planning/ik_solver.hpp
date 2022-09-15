@@ -95,38 +95,22 @@ class IKSolver : public IKSolverBase {
       const moveit::core::JointModelGroup* jmg,
       const moveit::core::RobotState& state_b) override;
 
-  // TODO: planning call i/o should be same across both planners!
   /** Plans a joint trajectory based on an affordance trajectory
    *
-   * @param affordance_traj The Cartesian trajectory to plan for
-   * @param start_state The starting state of the robot
-   * @param ee_name The name of the EE link
-   * @param joint_trajectory The joint trajectory that will be populated
+   * @param req The planning request
+   * @param res The planning response
    * @return The result
    */
-  ap_planning::Result plan(
-      const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
-      const moveit::core::RobotStatePtr& start_state,
-      const std::string& ee_name,
-      trajectory_msgs::JointTrajectory& joint_trajectory) override;
-
-  /** Plans a joint trajectory based on an Affordance Primitive goal
-   *
-   * @param ap_goal The AP goal message
-   * @param start_state The starting state of the robot
-   * @param joint_trajectory The joint trajectory that will be populated
-   * @return The result
-   */
-  ap_planning::Result plan(
-      const affordance_primitive_msgs::AffordancePrimitiveGoal& ap_goal,
-      const moveit::core::RobotStatePtr& start_state,
-      trajectory_msgs::JointTrajectory& joint_trajectory) override;
+  ap_planning::Result plan(const APPlanningRequest& req,
+                           APPlanningResponse& res) override;
 
  protected:
   affordance_primitives::APScrewExecutor screw_executor_;
 
   // This holds the kinematics solver
   kinematics::KinematicsBasePtr ik_solver_;
+
+  moveit::core::RobotStatePtr kinematic_state_;
 
   // Planning parameters
   double joint_tolerance_;

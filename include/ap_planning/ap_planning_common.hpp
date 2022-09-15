@@ -32,6 +32,10 @@
 
 #pragma once
 
+#include <affordance_primitive_msgs/ScrewStamped.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <trajectory_msgs/JointTrajectory.h>
+
 #include <string>
 
 namespace ap_planning {
@@ -58,4 +62,31 @@ inline std::string toStr(const Result result) {
   }
   return "Unknown code";
 }
+
+/**
+ * A struct for holding all the information needed to make an AP planning
+ * request
+ *
+ * Note: the screw axis (screw_msg) and starting pose (start_pose) should be
+ * given with respect to the planning frame
+ */
+struct APPlanningRequest {
+  affordance_primitive_msgs::ScrewStamped screw_msg;
+  double theta;
+  std::string ee_frame_name;
+
+  // Only set one of these
+  std::vector<double> start_joint_state;
+  geometry_msgs::PoseStamped start_pose;
+};
+
+/**
+ * A struct for holding all the information returned from planning
+ */
+struct APPlanningResponse {
+  trajectory_msgs::JointTrajectory joint_trajectory;
+  double percentage_complete;
+  bool trajectory_is_valid;
+  double path_length;
+};
 }  // namespace ap_planning
