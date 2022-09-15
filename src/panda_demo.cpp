@@ -155,8 +155,8 @@ int main(int argc, char **argv) {
     show_screw(req.screw_msg, visual_tools);
 
     ap_planning::APPlanningResponse result;
-    bool success = ap_planner.plan(req, result);
-    if (success) {
+    ap_planning::Result success = ap_planner.plan(req, result);
+    if (success == ap_planning::SUCCESS) {
       std::cout << "\n\n\nScrew planning: Success!!\n\n";
       std::cout << "Trajectory is: " << result.percentage_complete * 100
                 << "% complete, and has length: " << result.path_length << "\n";

@@ -141,6 +141,76 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
   return true;
 }
 
+ap_planning::Result IKSolver::plan(
+    const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
+    const std::vector<double>& start_state, const std::string& ee_name,
+    APPlanningResponse& res) {
+  // TODO: write code for naive planner to find starting joint states
+  // Only supported input is a starting joint state
+  if (start_state.size() != joint_model_group_->getVariableCount()) {
+    ROS_WARN_STREAM("Starting joint state was size: "
+                    << start_state.size() << ", expected size: "
+                    << joint_model_group_->getVariableCount());
+    return ap_planning::INVALID_GOAL;
+  }
+
+  // Set response to failing case
+  res.joint_trajectory.joint_names.clear();
+  res.joint_trajectory.points.clear();
+  res.percentage_complete = 0.0;
+  res.trajectory_is_valid = false;
+
+  // Make a new robot state and copy the starting state
+  moveit::core::RobotStatePtr current_state(
+      new moveit::core::RobotState(kinematic_model_));
+  current_state->setJointGroupPositions(joint_model_group_,
+                                        start_state);
+
+  // We will check the first IK solution is close to the starting state
+  trajectory_msgs::JointTrajectoryPoint starting_point;
+  current_state->copyJointGroupPositions(joint_model_group_,
+                                        starting_point.positions);
+
+  // Figure out how many waypoints there are
+  const size_t num_waypoints = affordance_traj.trajectory.size();
+  const double wp_percent = 1 / double(num_waypoints);
+
+  // Rip through trajectory and plan
+  // Note: these waypoints are defined in the screw's (PLANNING) frame
+  for (auto& wp : affordance_traj.trajectory) {
+    trajectory_msgs::JointTrajectoryPoint point;
+    point.time_from_start = wp.time_from_start;
+    if (!solveIK(joint_model_group_, wp.pose, ee_name, *current_state, point)) {
+      return ap_planning::NO_IK_SOLUTION;
+    }
+    if (res.joint_trajectory.points.size() < 1) {
+      if (!checkPointsAreClose(starting_point, point)) {
+        ROS_ERROR_STREAM("Points are not close!\n"
+                         << starting_point << "\n\n"
+                         << point);
+        return ap_planning::INVALID_TRANSITION;
+      }
+    } else {
+      auto transition_result =
+          verifyTransition(res.joint_trajectory.points.back(), point,
+                           joint_model_group_, *current_state);
+      if (transition_result != ap_planning::SUCCESS) {
+        return transition_result;
+      }
+    }
+    res.percentage_complete += wp_percent;
+    res.joint_trajectory.points.push_back(point);
+  }
+
+  // Set up the output
+  res.joint_trajectory.header.frame_id = kinematic_model_->getModelFrame();
+  res.joint_trajectory.joint_names = joint_model_group_->getVariableNames();
+  res.trajectory_is_valid = true;
+  res.path_length = -1;  // Not implemented
+
+  return ap_planning::SUCCESS;
+}
+
 ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
                                    APPlanningResponse& res) {
   // TODO: write code for naive planner to find starting joint states
@@ -151,12 +221,6 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
                     << joint_model_group_->getVariableCount());
     return ap_planning::INVALID_GOAL;
   }
-
-  // Set response to failing case
-  res.joint_trajectory.joint_names.clear();
-  res.joint_trajectory.points.clear();
-  res.percentage_complete = 0.0;
-  res.trajectory_is_valid = false;
 
   // Make a new robot state and copy the starting state
   moveit::core::RobotStatePtr current_state(
@@ -204,42 +268,8 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     return ap_planning::INVALID_GOAL;
   }
 
-  // Rip through trajectory and plan
-  // Note: these waypoints are defined in the screw's (PLANNING) frame
-  for (auto& wp : ap_trajectory->trajectory) {
-    trajectory_msgs::JointTrajectoryPoint point;
-    point.time_from_start = wp.time_from_start;
-    if (!solveIK(joint_model_group_, wp.pose, req.ee_frame_name, *current_state,
-                 point)) {
-      return ap_planning::NO_IK_SOLUTION;
-    }
-    if (res.joint_trajectory.points.size() < 1) {
-      if (!checkPointsAreClose(starting_point, point)) {
-        ROS_ERROR_STREAM("Points are not close!\n"
-                         << starting_point << "\n\n"
-                         << point);
-        return ap_planning::INVALID_TRANSITION;
-      }
-    } else {
-      auto transition_result =
-          verifyTransition(res.joint_trajectory.points.back(), point,
-                           joint_model_group_, *current_state);
-      if (transition_result != ap_planning::SUCCESS) {
-        return transition_result;
-      }
-    }
-    res.percentage_complete += wp_percent;
-    res.joint_trajectory.points.push_back(point);
-  }
-
-  // Set up the output
-  res.joint_trajectory.header.frame_id = kinematic_model_->getModelFrame();
-  res.joint_trajectory.joint_names = joint_model_group_->getVariableNames();
-  res.trajectory_is_valid = true;
-  res.path_length = -1;  // Not implemented
-  res.percentage_complete -= wp_percent;
-
-  return ap_planning::SUCCESS;
+  // Do the planning
+  return plan(*ap_trajectory, req.start_joint_state, req.ee_frame_name, res);
 }
 
 size_t IKSolver::calculateNumWaypoints(

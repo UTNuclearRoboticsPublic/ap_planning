@@ -44,7 +44,8 @@ enum Result {
   INITIALIZATION_FAIL,
   INVALID_GOAL,
   NO_IK_SOLUTION,
-  INVALID_TRANSITION
+  INVALID_TRANSITION,
+  PLANNING_FAIL
 };
 
 inline std::string toStr(const Result result) {
@@ -59,6 +60,8 @@ inline std::string toStr(const Result result) {
       return "Could not solve IK";
     case INVALID_TRANSITION:
       return "Invalid transition";
+    case PLANNING_FAIL:
+      return "Failed planning";
   }
   return "Unknown code";
 }

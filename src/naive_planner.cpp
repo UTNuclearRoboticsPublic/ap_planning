@@ -29,6 +29,22 @@ bool NaivePlanner::initialize() {
   return initialized_;
 }
 
+ap_planning::Result NaivePlanner::plan(
+    const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
+    const std::vector<double>& start_state, const std::string& ee_name,
+    APPlanningResponse& res) {
+  // If we haven't already initialized, do so
+  if (!initialized_ && !initialize()) {
+    return ap_planning::INITIALIZATION_FAIL;
+  }
+
+  if (!ik_solver_) {
+    return ap_planning::INITIALIZATION_FAIL;
+  }
+  return ik_solver_->plan(affordance_traj, start_state, ee_name,
+                          res);
+}
+
 ap_planning::Result NaivePlanner::plan(const APPlanningRequest& req,
                                        APPlanningResponse& res) {
   // If we haven't already initialized, do so

@@ -90,6 +90,21 @@ class IKSolverBase {
   virtual ap_planning::Result plan(const APPlanningRequest& req,
                                    APPlanningResponse& res) = 0;
 
+  /** Plans a joint trajectory based on an affordance trajectory
+   *
+   *
+   * @param affordance_traj The Cartesian trajectory to plan for
+   * @param start_state The starting state of the robot
+   * @param ee_name The name of the EE link
+   * @param res The planning response
+   * @return The result
+   */
+  virtual ap_planning::Result plan(
+      const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
+      const std::vector<double>& start_state,
+      const std::string& ee_name,
+      APPlanningResponse& res) = 0;
+
   virtual ~IKSolverBase(){};
 
  protected:
