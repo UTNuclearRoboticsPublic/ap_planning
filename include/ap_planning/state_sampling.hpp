@@ -69,6 +69,7 @@ class ScrewValidSampler : public ob::ValidStateSampler {
   ob::RealVectorBounds screw_bounds_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
+  kinematics::KinematicsBasePtr ik_solver_;
   affordance_primitives::ScrewAxis screw_axis_;
   Eigen::Isometry3d start_pose_;
 };
@@ -98,6 +99,7 @@ class ScrewSampler : public ob::StateSampler {
   ompl::RNG rng_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
+  kinematics::KinematicsBasePtr ik_solver_;
   ob::RealVectorBounds screw_bounds_;
   affordance_primitives::ScrewAxis screw_axis_;
   Eigen::Isometry3d start_pose_;
