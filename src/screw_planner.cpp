@@ -19,7 +19,8 @@ ScrewPlanner::ScrewPlanner(const std::string& move_group_name,
   ScrewValidSampler::kinematic_model = kinematic_model_;
 }
 
-bool ScrewPlanner::plan(const APPlanningRequest& req, APPlanningResponse& res) {
+ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
+                                       APPlanningResponse& res) {
   // Set response to failing case
   res.joint_trajectory.joint_names.clear();
   res.joint_trajectory.points.clear();
@@ -32,12 +33,12 @@ bool ScrewPlanner::plan(const APPlanningRequest& req, APPlanningResponse& res) {
 
   // Set up the state space for this plan
   if (!setupStateSpace(req)) {
-    return false;
+    return INITIALIZATION_FAIL;
   }
 
   // Set the parameters for the state space
   if (!setSpaceParameters(req, state_space_)) {
-    return false;
+    return INITIALIZATION_FAIL;
   }
 
   // Set the sampler and lock
@@ -46,18 +47,18 @@ bool ScrewPlanner::plan(const APPlanningRequest& req, APPlanningResponse& res) {
 
   // Set up... the SimpleSetup
   if (!setSimpleSetup(state_space_)) {
-    return false;
+    return INITIALIZATION_FAIL;
   }
 
   // Create start and goal states
   std::vector<std::vector<double>> start_configs, goal_configs;
   if (passed_start_config_) {
     if (!findGoalStates(req, 10, start_configs, goal_configs)) {
-      return false;
+      return NO_IK_SOLUTION;
     }
   } else {
     if (!findStartGoalStates(req, 5, 10, start_configs, goal_configs)) {
-      return false;
+      return NO_IK_SOLUTION;
     }
   }
 
@@ -81,10 +82,10 @@ bool ScrewPlanner::plan(const APPlanningRequest& req, APPlanningResponse& res) {
     ss_->simplifySolution(1.0);
 
     populateResponse(ss_->getSolutionPath(), req, res);
-    return true;
+    return SUCCESS;
   }
 
-  return false;
+  return PLANNING_FAIL;
 }
 
 bool ScrewPlanner::setupStateSpace(const APPlanningRequest& req) {

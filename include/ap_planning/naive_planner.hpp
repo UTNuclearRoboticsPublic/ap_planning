@@ -55,16 +55,22 @@ class NaivePlanner {
 
   bool initialize();
 
+  ap_planning::Result plan(const APPlanningRequest& req,
+                           APPlanningResponse& res);
+
+  /** Plans a joint trajectory based on an affordance trajectory
+   *
+   *
+   * @param affordance_traj The Cartesian trajectory to plan for
+   * @param start_state The starting state of the robot
+   * @param ee_name The name of the EE link
+   * @param res The planning response
+   * @return The result
+   */
   ap_planning::Result plan(
       const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
-      const moveit::core::RobotStatePtr& start_state,
-      const std::string& ee_name,
-      trajectory_msgs::JointTrajectory& joint_trajectory);
-
-  ap_planning::Result plan(
-      const affordance_primitive_msgs::AffordancePrimitiveGoal& ap_goal,
-      const moveit::core::RobotStatePtr& start_state,
-      trajectory_msgs::JointTrajectory& joint_trajectory);
+      const std::vector<double>& start_state, const std::string& ee_name,
+      APPlanningResponse& res);
 
  protected:
   // node handle
@@ -75,5 +81,7 @@ class NaivePlanner {
   std::shared_ptr<pluginlib::ClassLoader<ap_planning::IKSolverBase>>
       solver_loader_;
   boost::shared_ptr<ap_planning::IKSolverBase> ik_solver_;
+
+  bool initialized_;
 };
 }  // namespace ap_planning

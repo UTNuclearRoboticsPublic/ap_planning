@@ -34,6 +34,7 @@
 
 #include <ompl/geometric/SimpleSetup.h>
 #include <ompl/geometric/planners/prm/PRM.h>
+#include <ap_planning/ap_planning_common.hpp>
 #include <ap_planning/state_sampling.hpp>
 #include <ap_planning/state_utils.hpp>
 
@@ -51,8 +52,16 @@ class ScrewPlanner {
   ScrewPlanner(const std::string& move_group_name,
                const std::string& robot_description_name = "robot_description");
 
-  // TODO: allow taking current pose instead of generating them
-  bool plan(const APPlanningRequest& req, APPlanningResponse& res);
+  /** Attempts to plan a screw-based trajectory
+   *
+   * @param req The planning request
+   * @param res The planning response
+   * @return Returns the result of the underlaying planner. Note it is possible
+   * for the planner to return success but not have reached the goal, so check
+   * the response
+   */
+  ap_planning::Result plan(const APPlanningRequest& req,
+                           APPlanningResponse& res);
 
  protected:
   ompl::base::StateSpacePtr state_space_;
