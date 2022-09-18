@@ -155,8 +155,8 @@ int main(int argc, char **argv) {
     show_screw(req.screw_msg, visual_tools);
 
     ap_planning::APPlanningResponse result;
-    bool success = ap_planner.plan(req, result);
-    if (success) {
+    ap_planning::Result success = ap_planner.plan(req, result);
+    if (success == ap_planning::SUCCESS) {
       std::cout << "\n\n\nScrew planning: Success!!\n\n";
       std::cout << "Trajectory is: " << result.percentage_complete * 100
                 << "% complete, and has length: " << result.path_length << "\n";
@@ -172,22 +172,23 @@ int main(int argc, char **argv) {
         "Press 'next' in the RvizVisualToolsGui window to plan again using "
         "naive planner");
 
-    // Create the AP goal message
-    affordance_primitive_msgs::AffordancePrimitiveGoal ap_goal;
-    ap_goal.moving_frame_name = req.ee_frame_name;
-    ap_goal.moving_frame_source = ap_goal.LOOKUP;
-    ap_goal.theta_dot = 0.1;
-    ap_goal.screw_distance = req.theta;
-    ap_goal.screw = req.screw_msg;
+    req.start_pose = geometry_msgs::PoseStamped();
+    req.start_joint_state = default_joint_state;
 
     // Try planning
-    trajectory_msgs::JointTrajectory naive_output;
-    auto naive_res = naive_planner.plan(ap_goal, kinematic_state, naive_output);
+    ap_planning::APPlanningResponse naive_output;
+    auto naive_res = naive_planner.plan(req, naive_output);
     if (naive_res == ap_planning::SUCCESS) {
       std::cout << "\n\n\nNaive planning: Success!!\n\n";
-      show_trajectory(naive_output, visual_tools);
+      std::cout << "Trajectory is: " << naive_output.percentage_complete * 100
+                << "% complete, and has length: " << naive_output.path_length
+                << "\n";
+      show_trajectory(naive_output.joint_trajectory, visual_tools);
     } else {
       std::cout << "\n\n\nNaive planning: Fail!!\n\n";
+      std::cout << "Trajectory is: " << naive_output.percentage_complete * 100
+                << "% complete, and has length: " << naive_output.path_length
+                << "\n";
       continue;
     }
   }

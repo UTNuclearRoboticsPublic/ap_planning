@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
     show_screw(req.screw_msg, visual_tools);
 
     ap_planning::APPlanningResponse result;
-    if (ap_planner.plan(req, result)) {
+    if (ap_planner.plan(req, result) == ap_planning::SUCCESS) {
       std::cout << "\n\n\nSuccess!!\n\n";
     } else {
       std::cout << "\n\n\nFail!!\n\n";
