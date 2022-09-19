@@ -5,6 +5,8 @@
 
   <arg name="move_group_name" default="panda_arm" />
   <arg name="ik_solver_name" default="ap_planning::IKSolver" />
+  <arg name="num_sampling" default="3" />
+  <arg name="num_naive" default="3" />
 
   <include file="$(find panda_moveit_config)/launch/planning_context.launch">
     <arg name="load_robot_description" value="true"/>
@@ -20,5 +22,7 @@
     <rosparam command="load" file="$(find ap_planning)/config/panda_tracik_kinematics.yaml"/>
     <param name="move_group_name" type="string" value="$(arg move_group_name)" />
     <param name="ik_solver_name" type="string" value="$(arg ik_solver_name)" />
+    <param name="num_sampling" type="int" value="$(arg num_sampling)" />
+    <param name="num_naive" type="int" value="$(arg num_naive)" />
   </node>
 </launch>

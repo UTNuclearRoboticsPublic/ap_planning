@@ -1,4 +1,4 @@
-$(arg arm_id)_arm: &arm_config
+panda_arm:
   kinematics_solver: trac_ik_kinematics_plugin/TRAC_IKKinematicsPlugin
   kinematics_solver_search_resolution: 0.005
   kinematics_solver_timeout: 0.05
@@ -6,4 +6,4 @@ $(arg arm_id)_arm: &arm_config
   # kinematics_solver_search_resolution: 0.005
   # kinematics_solver_timeout: 0.005
 
-$(arg arm_id)_manipulator: *arm_config
+# $(arg arm_id)_manipulator: *arm_config

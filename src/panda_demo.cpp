@@ -86,6 +86,13 @@ int main(int argc, char **argv) {
                                           0, 1.571,  0.785};
   kinematic_state->setJointGroupPositions("panda_arm", default_joint_state);
 
+  int num_sample, num_naive;
+  nh.param<int>(ros::this_node::getName() + "/num_sampling", num_sample, 2);
+  nh.param<int>(ros::this_node::getName() + "/num_naive", num_naive, 2);
+
+  ROS_ERROR_STREAM(std::string(ros::this_node::getName() + "/num_sampling    ")
+                   << num_sample << "   " << num_naive);
+
   ros::Duration(2.0).sleep();
 
   moveit_visual_tools::MoveItVisualTools visual_tools("panda_link0");
@@ -132,6 +139,7 @@ int main(int argc, char **argv) {
   single_request.screw_msg.origin = geometry_msgs::Point();
   planning_queue.push(single_request);
 
+  single_request.theta = 0.75;  // meters
   single_request.screw_msg.origin = single_request.start_pose.pose.position;
   single_request.screw_msg.axis.x = -1;
   single_request.screw_msg.axis.z = 1;
@@ -145,8 +153,13 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
+  std::stringstream ss;
+  ss << "Start of output\n";
+  size_t sample = 0;
+
   // Plan each screw request
   while (planning_queue.size() > 0 && ros::ok()) {
+    sample++;
     auto req = planning_queue.front();
     planning_queue.pop();
     visual_tools.prompt(
@@ -154,17 +167,27 @@ int main(int argc, char **argv) {
 
     show_screw(req.screw_msg, visual_tools);
 
-    ap_planning::APPlanningResponse result;
-    ap_planning::Result success = ap_planner.plan(req, result);
-    if (success == ap_planning::SUCCESS) {
-      std::cout << "\n\n\nScrew planning: Success!!\n\n";
-      std::cout << "Trajectory is: " << result.percentage_complete * 100
-                << "% complete, and has length: " << result.path_length << "\n";
+    for (size_t i = 0; i < num_sample; ++i) {
+      ap_planning::APPlanningResponse result;
+      auto start = std::chrono::high_resolution_clock::now();
+      ap_planning::Result success = ap_planner.plan(req, result);
+      auto stop = std::chrono::high_resolution_clock::now();
+      auto duration =
+          std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+      if (success == ap_planning::SUCCESS) {
+        std::cout << "\n\n\nScrew planning: Success!!\n\n";
+        std::cout << "Trajectory is: " << result.percentage_complete * 100
+                  << "% complete, and has length: " << result.path_length
+                  << "\n";
 
-      show_trajectory(result.joint_trajectory, visual_tools);
-    } else {
-      std::cout << "\n\n\nScrew planning: Fail!!\n\n";
-      continue;
+        show_trajectory(result.joint_trajectory, visual_tools);
+      } else {
+        std::cout << "\n\n\nScrew planning: Fail!!\n\n";
+      }
+
+      ss << sample << ", Screw, " << ap_planning::toStr(success) << ", "
+         << result.percentage_complete * 100 << ", " << duration.count()
+         << ",\n";
     }
 
     // Now move to naive planner
@@ -176,22 +199,33 @@ int main(int argc, char **argv) {
     req.start_joint_state = default_joint_state;
 
     // Try planning
-    ap_planning::APPlanningResponse naive_output;
-    auto naive_res = naive_planner.plan(req, naive_output);
-    if (naive_res == ap_planning::SUCCESS) {
-      std::cout << "\n\n\nNaive planning: Success!!\n\n";
-      std::cout << "Trajectory is: " << naive_output.percentage_complete * 100
-                << "% complete, and has length: " << naive_output.path_length
-                << "\n";
-      show_trajectory(naive_output.joint_trajectory, visual_tools);
-    } else {
-      std::cout << "\n\n\nNaive planning: Fail!!\n\n";
-      std::cout << "Trajectory is: " << naive_output.percentage_complete * 100
-                << "% complete, and has length: " << naive_output.path_length
-                << "\n";
-      continue;
+    for (size_t i = 0; i < num_naive; ++i) {
+      ap_planning::APPlanningResponse naive_output;
+      auto start = std::chrono::high_resolution_clock::now();
+      auto naive_res = naive_planner.plan(req, naive_output);
+      auto stop = std::chrono::high_resolution_clock::now();
+      auto duration =
+          std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+      if (naive_res == ap_planning::SUCCESS) {
+        std::cout << "\n\n\nNaive planning: Success!!\n\n";
+        std::cout << "Trajectory is: " << naive_output.percentage_complete * 100
+                  << "% complete, and has length: " << naive_output.path_length
+                  << "\n";
+        show_trajectory(naive_output.joint_trajectory, visual_tools);
+      } else {
+        std::cout << "\n\n\nNaive planning: Fail!!\n\n";
+        std::cout << "Trajectory is: " << naive_output.percentage_complete * 100
+                  << "% complete, and has length: " << naive_output.path_length
+                  << "\n";
+      }
+      ss << sample << ", Naive, " << ap_planning::toStr(naive_res) << ", "
+         << naive_output.percentage_complete * 100 << ", " << duration.count()
+         << ",\n";
     }
   }
+
+  ss << "End output\n";
+  std::cout << ss.str();
 
   ros::shutdown();
   return 0;
