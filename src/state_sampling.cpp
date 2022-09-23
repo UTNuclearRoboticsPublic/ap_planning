@@ -59,7 +59,6 @@ bool ScrewValidSampler::sample(ob::State *state) {
 
   // Calculate IK for the pose
   std::vector<double> ik_solution, seed_state;
-  kinematic_state_->setToRandomPositions();
   kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
                                             seed_state);
   moveit_msgs::MoveItErrorCodes err;
@@ -70,6 +69,10 @@ bool ScrewValidSampler::sample(ob::State *state) {
   if (!found_ik) {
     return false;
   }
+
+  kinematic_state_->setJointGroupActivePositions(joint_model_group_.get(),
+                                                 ik_solution);
+  kinematic_state_->update();
 
   // Convert to robot state
   for (size_t i = 0; i < ik_solution.size(); ++i) {
@@ -135,7 +138,6 @@ void ScrewSampler::sample(ob::State *state,
 
   // Solve IK for the pose
   std::vector<double> ik_solution, seed_state;
-  kinematic_state_->setToRandomPositions();
   kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
                                             seed_state);
   moveit_msgs::MoveItErrorCodes err;
@@ -146,6 +148,10 @@ void ScrewSampler::sample(ob::State *state,
   if (!found_ik) {
     return;
   }
+
+  kinematic_state_->setJointGroupPositions(joint_model_group_.get(),
+                                           ik_solution);
+  kinematic_state_->update();
 
   // // Convert to robot state
   for (size_t i = 0; i < ik_solution.size(); ++i) {

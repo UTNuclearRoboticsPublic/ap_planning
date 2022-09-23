@@ -145,25 +145,29 @@ ap_planning::Result IKSolver::plan(
     const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
     const std::vector<double>& start_state, const std::string& ee_name,
     APPlanningResponse& res) {
-  // TODO: write code for naive planner to find starting joint states
-  // Only supported input is a starting joint state
-  if (start_state.size() != joint_model_group_->getVariableCount()) {
-    ROS_WARN_STREAM("Starting joint state was size: "
-                    << start_state.size() << ", expected size: "
-                    << joint_model_group_->getVariableCount());
-    return ap_planning::INVALID_GOAL;
-  }
-
   // Set response to failing case
   res.joint_trajectory.joint_names.clear();
   res.joint_trajectory.points.clear();
   res.percentage_complete = 0.0;
   res.trajectory_is_valid = false;
 
-  // Make a new robot state and copy the starting state
+  // Make a new robot state
   moveit::core::RobotStatePtr current_state(
       new moveit::core::RobotState(kinematic_model_));
-  current_state->setJointGroupPositions(joint_model_group_, start_state);
+
+  if (start_state.size() == joint_model_group_->getVariableCount()) {
+    // The start state was given, use it
+    current_state->setJointGroupPositions(joint_model_group_, start_state);
+  } else {
+    // Solve IK for the first waypoint
+    current_state->setToDefaultValues();
+    const auto first_pose = affordance_traj.trajectory.front().pose;
+    trajectory_msgs::JointTrajectoryPoint point;
+    if (!solveIK(joint_model_group_, first_pose, ee_name, *current_state,
+                 point)) {
+      return ap_planning::NO_IK_SOLUTION;
+    }
+  }
 
   // We will check the first IK solution is close to the starting state
   trajectory_msgs::JointTrajectoryPoint starting_point;
@@ -212,20 +216,23 @@ ap_planning::Result IKSolver::plan(
 
 ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
                                    APPlanningResponse& res) {
-  // TODO: write code for naive planner to find starting joint states
-  // Only supported input is a starting joint state
-  if (req.start_joint_state.size() != joint_model_group_->getVariableCount()) {
-    ROS_WARN_STREAM("Starting joint state was size: "
-                    << req.start_joint_state.size() << ", expected size: "
-                    << joint_model_group_->getVariableCount());
-    return ap_planning::INVALID_GOAL;
-  }
-
-  // Make a new robot state and copy the starting state
+  // Make a new robot state
   moveit::core::RobotStatePtr current_state(
       new moveit::core::RobotState(kinematic_model_));
-  current_state->setJointGroupPositions(joint_model_group_,
-                                        req.start_joint_state);
+  std::vector<double> starting_joint_config = req.start_joint_state;
+
+  if (req.start_joint_state.size() != joint_model_group_->getVariableCount()) {
+    // Use IK to find the first joint state
+    current_state->setToDefaultValues();
+    const auto first_pose = req.start_pose.pose;
+    trajectory_msgs::JointTrajectoryPoint point;
+    if (!solveIK(joint_model_group_, first_pose, req.ee_frame_name,
+                 *current_state, point)) {
+      return ap_planning::NO_IK_SOLUTION;
+    }
+    current_state->copyJointGroupPositions(joint_model_group_,
+                                           starting_joint_config);
+  }
 
   // We will check the first IK solution is close to the starting state
   trajectory_msgs::JointTrajectoryPoint starting_point;
@@ -268,7 +275,7 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
   }
 
   // Do the planning
-  return plan(*ap_trajectory, req.start_joint_state, req.ee_frame_name, res);
+  return plan(*ap_trajectory, starting_joint_config, req.ee_frame_name, res);
 }
 
 size_t IKSolver::calculateNumWaypoints(

@@ -90,6 +90,10 @@ int main(int argc, char **argv) {
   nh.param<int>(ros::this_node::getName() + "/num_sampling", num_sample, 2);
   nh.param<int>(ros::this_node::getName() + "/num_naive", num_naive, 2);
 
+  bool show_trajectories;
+  nh.param<bool>(ros::this_node::getName() + "/show_trajectories",
+                 show_trajectories, true);
+
   ROS_ERROR_STREAM(std::string(ros::this_node::getName() + "/num_sampling    ")
                    << num_sample << "   " << num_naive);
 
@@ -156,14 +160,18 @@ int main(int argc, char **argv) {
   std::stringstream ss;
   ss << "Start of output\n";
   size_t sample = 0;
+  ap_planning::APPlanningResponse last_plan;
 
   // Plan each screw request
   while (planning_queue.size() > 0 && ros::ok()) {
     sample++;
     auto req = planning_queue.front();
     planning_queue.pop();
-    visual_tools.prompt(
-        "Press 'next' in the RvizVisualToolsGui window to plan next screw");
+
+    if (show_trajectories) {
+      visual_tools.prompt(
+          "Press 'next' in the RvizVisualToolsGui window to plan next screw");
+    }
 
     show_screw(req.screw_msg, visual_tools);
 
@@ -180,7 +188,10 @@ int main(int argc, char **argv) {
                   << "% complete, and has length: " << result.path_length
                   << "\n";
 
-        show_trajectory(result.joint_trajectory, visual_tools);
+        if (show_trajectories) {
+          show_trajectory(result.joint_trajectory, visual_tools);
+        }
+        last_plan = result;
       } else {
         std::cout << "\n\n\nScrew planning: Fail!!\n\n";
       }
@@ -191,12 +202,11 @@ int main(int argc, char **argv) {
     }
 
     // Now move to naive planner
-    visual_tools.prompt(
-        "Press 'next' in the RvizVisualToolsGui window to plan again using "
-        "naive planner");
-
-    req.start_pose = geometry_msgs::PoseStamped();
-    req.start_joint_state = default_joint_state;
+    if (show_trajectories) {
+      visual_tools.prompt(
+          "Press 'next' in the RvizVisualToolsGui window to plan again using "
+          "naive planner");
+    }
 
     // Try planning
     for (size_t i = 0; i < num_naive; ++i) {
@@ -211,7 +221,10 @@ int main(int argc, char **argv) {
         std::cout << "Trajectory is: " << naive_output.percentage_complete * 100
                   << "% complete, and has length: " << naive_output.path_length
                   << "\n";
-        show_trajectory(naive_output.joint_trajectory, visual_tools);
+        if (show_trajectories) {
+          show_trajectory(naive_output.joint_trajectory, visual_tools);
+        }
+        last_plan = naive_output;
       } else {
         std::cout << "\n\n\nNaive planning: Fail!!\n\n";
         std::cout << "Trajectory is: " << naive_output.percentage_complete * 100
@@ -223,6 +236,8 @@ int main(int argc, char **argv) {
          << ",\n";
     }
   }
+
+  show_trajectory(last_plan.joint_trajectory, visual_tools);
 
   ss << "End output\n";
   std::cout << ss.str();
