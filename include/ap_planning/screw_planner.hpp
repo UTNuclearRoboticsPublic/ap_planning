@@ -72,6 +72,7 @@ class ScrewPlanner {
   moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   std::shared_ptr<moveit::core::JointModelGroup> joint_model_group_;
+  kinematics::KinematicsBasePtr ik_solver_;
   bool passed_start_config_;
 
   bool setupStateSpace(const APPlanningRequest& req);

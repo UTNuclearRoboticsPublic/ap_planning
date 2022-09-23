@@ -13,6 +13,8 @@ ScrewPlanner::ScrewPlanner(const std::string& move_group_name,
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
       *kinematic_model_->getJointModelGroup(move_group_name));
 
+  ik_solver_ = joint_model_group_->getSolverInstance();
+
   // Set kinematic model for classes that will need it
   ScrewSampler::kinematic_model = kinematic_model_;
   ScrewValidityChecker::kinematic_model = kinematic_model_;
@@ -288,18 +290,19 @@ void ScrewPlanner::increaseStateList(
     const affordance_primitives::Pose& pose,
     std::vector<std::vector<double>>& state_list) {
   // Try to solve the IK
-  if (!kinematic_state_->setFromIK(joint_model_group_.get(), pose)) {
+  std::vector<double> seed_state, ik_solution;
+  moveit_msgs::MoveItErrorCodes err;
+  kinematics::KinematicsQueryOptions opts;
+  kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
+                                            seed_state);
+  if (!ik_solver_->searchPositionIK(pose, seed_state, 0.05, ik_solution, err,
+                                    opts)) {
     return;
   }
 
-  // Copy found solution to vector
-  std::vector<double> joint_values;
-  kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
-                                            joint_values);
-
   // If the solution is valid, add it to the list
-  if (checkDuplicateState(state_list, joint_values)) {
-    state_list.push_back(joint_values);
+  if (checkDuplicateState(state_list, ik_solution)) {
+    state_list.push_back(ik_solution);
   }
 }
 
