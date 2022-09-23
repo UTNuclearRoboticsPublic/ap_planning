@@ -145,29 +145,24 @@ ap_planning::Result IKSolver::plan(
     const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
     const std::vector<double>& start_state, const std::string& ee_name,
     APPlanningResponse& res) {
+  // Only supported input is a starting joint state
+  if (start_state.size() != joint_model_group_->getVariableCount()) {
+    ROS_WARN_STREAM("Starting joint state was size: "
+                    << start_state.size() << ", expected size: "
+                    << joint_model_group_->getVariableCount());
+    return ap_planning::INVALID_GOAL;
+  }
+
   // Set response to failing case
   res.joint_trajectory.joint_names.clear();
   res.joint_trajectory.points.clear();
   res.percentage_complete = 0.0;
   res.trajectory_is_valid = false;
 
-  // Make a new robot state
+  // Make a new robot state and copy the starting state
   moveit::core::RobotStatePtr current_state(
       new moveit::core::RobotState(kinematic_model_));
-
-  if (start_state.size() == joint_model_group_->getVariableCount()) {
-    // The start state was given, use it
-    current_state->setJointGroupPositions(joint_model_group_, start_state);
-  } else {
-    // Solve IK for the first waypoint
-    current_state->setToDefaultValues();
-    const auto first_pose = affordance_traj.trajectory.front().pose;
-    trajectory_msgs::JointTrajectoryPoint point;
-    if (!solveIK(joint_model_group_, first_pose, ee_name, *current_state,
-                 point)) {
-      return ap_planning::NO_IK_SOLUTION;
-    }
-  }
+  current_state->setJointGroupPositions(joint_model_group_, start_state);
 
   // We will check the first IK solution is close to the starting state
   trajectory_msgs::JointTrajectoryPoint starting_point;
@@ -232,6 +227,10 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     }
     current_state->copyJointGroupPositions(joint_model_group_,
                                            starting_joint_config);
+  } else {
+    // Copy the starting position
+    current_state->setJointGroupPositions(joint_model_group_,
+                                          req.start_joint_state);
   }
 
   // We will check the first IK solution is close to the starting state
