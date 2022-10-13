@@ -34,6 +34,7 @@
 
 #include <ompl/geometric/SimpleSetup.h>
 #include <ompl/geometric/planners/prm/PRM.h>
+#include <ompl/geometric/planners/rrt/RRTConnect.h>
 #include <ap_planning/ap_planning_common.hpp>
 #include <ap_planning/state_sampling.hpp>
 #include <ap_planning/state_utils.hpp>
@@ -73,7 +74,9 @@ class ScrewPlanner {
   moveit::core::RobotStatePtr kinematic_state_;
   std::shared_ptr<moveit::core::JointModelGroup> joint_model_group_;
   kinematics::KinematicsBasePtr ik_solver_;
+  planning_scene_monitor::PlanningSceneMonitorPtr psm_;
   bool passed_start_config_;
+  std::string robot_description_name_;
 
   bool setupStateSpace(const APPlanningRequest& req);
   affordance_primitives::TransformStamped getStartTF(

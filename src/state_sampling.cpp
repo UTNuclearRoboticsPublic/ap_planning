@@ -3,12 +3,39 @@
 
 namespace ap_planning {
 
+bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
+                         const moveit::core::RobotStatePtr robot_state,
+                         planning_scene_monitor::PlanningSceneMonitorPtr psm,
+                         const std::vector<double> &joints,
+                         moveit_msgs::MoveItErrorCodes &error_code) {
+  // Get the most recent planning scene
+  psm->requestPlanningSceneState();
+  planning_scene_monitor::LockedPlanningSceneRO ps(psm);
+
+  // Copy the IK solution to the robot state
+  auto state_cpy = robot_state;
+  state_cpy->setJointGroupPositions(jmg.get(), joints);
+
+  // Check for collisions
+  collision_detection::CollisionResult::ContactMap contacts;
+  ps->getCollidingPairs(contacts, *state_cpy);
+
+  // Set the error code
+  if (contacts.size() == 0) {
+    error_code.val = moveit_msgs::MoveItErrorCodes::SUCCESS;
+  } else {
+    error_code.val = moveit_msgs::MoveItErrorCodes::NO_IK_SOLUTION;
+  }
+  return true;
+}
+
 ScrewValidSampler::ScrewValidSampler(const ob::SpaceInformation *si)
     : ValidStateSampler(si), screw_bounds_(1) {
   name_ = "screw_valid_sampler";
 
   // Get robot description and move group parameters
-  std::string mg_string;
+  std::string mg_string, rd_string;
+  si->getStateSpace()->params().getParam("robot_description_name", rd_string);
   si->getStateSpace()->params().getParam("move_group", mg_string);
 
   // Load robot
@@ -20,6 +47,9 @@ ScrewValidSampler::ScrewValidSampler(const ob::SpaceInformation *si)
       *kinematic_model->getJointModelGroup(mg_string));
 
   ik_solver_ = joint_model_group_->getSolverInstance();
+
+  psm_ =
+      std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(rd_string);
 
   std::string screw_msg_string, pose_msg_string;
   si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
@@ -57,6 +87,14 @@ bool ScrewValidSampler::sample(ob::State *state) {
       start_pose_ * screw_axis_.getTF(screw_state[0]);
   geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
+  // Set up IK callback
+  kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
+      [this](const geometry_msgs::Pose &pose, const std::vector<double> &joints,
+             moveit_msgs::MoveItErrorCodes &error_code) {
+        ikCallbackFnAdapter(joint_model_group_, kinematic_state_, psm_, joints,
+                            error_code);
+      };
+
   // Calculate IK for the pose
   std::vector<double> ik_solution, seed_state;
   kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
@@ -64,8 +102,8 @@ bool ScrewValidSampler::sample(ob::State *state) {
   moveit_msgs::MoveItErrorCodes err;
   kinematics::KinematicsQueryOptions opts;
   // opts.return_approximate_solution = true;
-  bool found_ik = ik_solver_->searchPositionIK(pose_msg, seed_state, 0.05,
-                                               ik_solution, err, opts);
+  bool found_ik = ik_solver_->searchPositionIK(
+      pose_msg, seed_state, 0.05, ik_solution, ik_callback_fn, err, opts);
   if (!found_ik) {
     return false;
   }
@@ -89,7 +127,8 @@ ob::ValidStateSamplerPtr allocScrewValidSampler(
 ScrewSampler::ScrewSampler(const ob::StateSpace *state_space)
     : StateSampler(state_space), screw_bounds_(state_space->getDimension()) {
   // Get robot description and move group parameters
-  std::string mg_string;
+  std::string mg_string, rd_string;
+  state_space->params().getParam("robot_description_name", rd_string);
   state_space->params().getParam("move_group", mg_string);
 
   kinematic_state_ =
@@ -100,6 +139,9 @@ ScrewSampler::ScrewSampler(const ob::StateSpace *state_space)
       *kinematic_model->getJointModelGroup(mg_string));
 
   ik_solver_ = joint_model_group_->getSolverInstance();
+
+  psm_ =
+      std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(rd_string);
 
   auto compound_space = state_space->as<ob::CompoundStateSpace>();
   screw_bounds_ = compound_space->getSubspace(0)
@@ -136,6 +178,14 @@ void ScrewSampler::sample(ob::State *state,
       start_pose_ * screw_axis_.getTF(screw_state[0]);
   geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
+  // Set up IK callback
+  kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
+      [this](const geometry_msgs::Pose &pose, const std::vector<double> &joints,
+             moveit_msgs::MoveItErrorCodes &error_code) {
+        ikCallbackFnAdapter(joint_model_group_, kinematic_state_, psm_, joints,
+                            error_code);
+      };
+
   // Solve IK for the pose
   std::vector<double> ik_solution, seed_state;
   kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
@@ -143,8 +193,8 @@ void ScrewSampler::sample(ob::State *state,
   moveit_msgs::MoveItErrorCodes err;
   kinematics::KinematicsQueryOptions opts;
   // opts.return_approximate_solution = true;
-  bool found_ik = ik_solver_->searchPositionIK(pose_msg, seed_state, 0.05,
-                                               ik_solution, err, opts);
+  bool found_ik = ik_solver_->searchPositionIK(
+      pose_msg, seed_state, 0.05, ik_solution, ik_callback_fn, err, opts);
   if (!found_ik) {
     return;
   }

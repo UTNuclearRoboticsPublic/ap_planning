@@ -50,6 +50,10 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
     return false;
   }
 
+  // Set up planning scene monitor
+  psm_ = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(
+      robot_description_name);
+
   return true;
 }
 
@@ -121,12 +125,32 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
                        const std::string& ee_frame,
                        moveit::core::RobotState& robot_state,
                        trajectory_msgs::JointTrajectoryPoint& point) {
+  // Set up the validation callback to make sure we don't collide with the
+  // environment
+  kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
+      [this, jmg, robot_state](const geometry_msgs::Pose& pose,
+                               const std::vector<double>& joints,
+                               moveit_msgs::MoveItErrorCodes& error_code) {
+        psm_->requestPlanningSceneState();
+        planning_scene_monitor::LockedPlanningSceneRO ps(psm_);
+        auto state_cpy = robot_state;
+        state_cpy.setJointGroupPositions(jmg, joints);
+        collision_detection::CollisionResult::ContactMap contacts;
+        ps->getCollidingPairs(contacts, state_cpy);
+
+        if (contacts.size() == 0) {
+          error_code.val = moveit_msgs::MoveItErrorCodes::SUCCESS;
+        } else {
+          error_code.val = moveit_msgs::MoveItErrorCodes::NO_IK_SOLUTION;
+        }
+      };
+
   // Solve the IK
   std::vector<double> ik_solution, seed_state;
   robot_state.copyJointGroupPositions(jmg, seed_state);
   moveit_msgs::MoveItErrorCodes err;
   if (!ik_solver_->searchPositionIK(target_pose, seed_state, 0.05, ik_solution,
-                                    err)) {
+                                    ik_callback_fn, err)) {
     ROS_WARN_STREAM_THROTTLE(5, "Could not solve IK");
     return false;
   }
@@ -158,6 +182,7 @@ ap_planning::Result IKSolver::plan(
   res.joint_trajectory.points.clear();
   res.percentage_complete = 0.0;
   res.trajectory_is_valid = false;
+  res.path_length = -1;
 
   // Make a new robot state and copy the starting state
   moveit::core::RobotStatePtr current_state(
@@ -211,6 +236,13 @@ ap_planning::Result IKSolver::plan(
 
 ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
                                    APPlanningResponse& res) {
+  // Set response to failing case
+  res.joint_trajectory.joint_names.clear();
+  res.joint_trajectory.points.clear();
+  res.percentage_complete = 0.0;
+  res.trajectory_is_valid = false;
+  res.path_length = -1;
+
   // Make a new robot state
   moveit::core::RobotStatePtr current_state(
       new moveit::core::RobotState(kinematic_model_));

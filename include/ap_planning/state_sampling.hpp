@@ -33,6 +33,7 @@
 #pragma once
 
 #include <affordance_primitive_msgs/ScrewStamped.h>
+#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_state/robot_state.h>
 #include <ompl/base/SpaceInformation.h>
@@ -43,6 +44,20 @@
 namespace ob = ompl::base;
 
 namespace ap_planning {
+
+/** Contains all the functionality for using collision checking during Ik
+ *
+ * @param jmg The joint model group
+ * @param robot_state The robot state object
+ * @param psm The planning scene monitor to check against
+ * @param joints The IK solution to check
+ * @param error_code The error code for this solution
+ */
+bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
+                         const moveit::core::RobotStatePtr robot_state,
+                         planning_scene_monitor::PlanningSceneMonitorPtr psm,
+                         const std::vector<double> &joints,
+                         moveit_msgs::MoveItErrorCodes &error_code);
 
 ob::ValidStateSamplerPtr allocScrewValidSampler(const ob::SpaceInformation *si);
 
@@ -70,6 +85,8 @@ class ScrewValidSampler : public ob::ValidStateSampler {
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
   kinematics::KinematicsBasePtr ik_solver_;
+  // TODO: think about sharing psm like kinematic model
+  planning_scene_monitor::PlanningSceneMonitorPtr psm_;
   affordance_primitives::ScrewAxis screw_axis_;
   Eigen::Isometry3d start_pose_;
 };
@@ -100,6 +117,7 @@ class ScrewSampler : public ob::StateSampler {
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
   kinematics::KinematicsBasePtr ik_solver_;
+  planning_scene_monitor::PlanningSceneMonitorPtr psm_;
   ob::RealVectorBounds screw_bounds_;
   affordance_primitives::ScrewAxis screw_axis_;
   Eigen::Isometry3d start_pose_;

@@ -5,6 +5,7 @@ namespace ap_planning {
 ScrewPlanner::ScrewPlanner(const std::string& move_group_name,
                            const std::string& robot_description_name) {
   // Load the robot model
+  robot_description_name_ = robot_description_name;
   robot_model_loader::RobotModelLoader robot_model_loader(
       robot_description_name);
   kinematic_model_ = robot_model_loader.getModel();
@@ -14,6 +15,9 @@ ScrewPlanner::ScrewPlanner(const std::string& move_group_name,
       *kinematic_model_->getJointModelGroup(move_group_name));
 
   ik_solver_ = joint_model_group_->getSolverInstance();
+
+  psm_ = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(
+      robot_description_name_);
 
   // Set kinematic model for classes that will need it
   ScrewSampler::kinematic_model = kinematic_model_;
@@ -79,7 +83,7 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
   ss_->setGoal(goal_obj);
 
   // Plan
-  ob::PlannerStatus solved = ss_->solve(5.0);
+  ob::PlannerStatus solved = ss_->solve(req.planning_time);
   if (solved) {
     ss_->simplifySolution(1.0);
 
@@ -156,7 +160,7 @@ bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
   pose_param->setValue(affordance_primitives::poseToStr(pose_msg));
   space->params().add(pose_param);
 
-  // Add EE frame name and move group parameters
+  // Add EE frame name, move group, and robot_description parameters
   auto ee_name_param =
       std::make_shared<ap_planning::StringParam>("ee_frame_name");
   ee_name_param->setValue(req.ee_frame_name);
@@ -165,6 +169,10 @@ bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
       std::make_shared<ap_planning::StringParam>("move_group");
   move_group_param->setValue(joint_model_group_->getName());
   space->params().add(move_group_param);
+  auto robot_description_param =
+      std::make_shared<ap_planning::StringParam>("robot_description_name");
+  robot_description_param->setValue(robot_description_name_);
+  space->params().add(robot_description_param);
 
   return true;
 }
@@ -289,14 +297,22 @@ bool ScrewPlanner::findGoalStates(
 void ScrewPlanner::increaseStateList(
     const affordance_primitives::Pose& pose,
     std::vector<std::vector<double>>& state_list) {
+  // Set up IK callback
+  kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
+      [this](const geometry_msgs::Pose& pose, const std::vector<double>& joints,
+             moveit_msgs::MoveItErrorCodes& error_code) {
+        ikCallbackFnAdapter(joint_model_group_, kinematic_state_, psm_, joints,
+                            error_code);
+      };
+
   // Try to solve the IK
   std::vector<double> seed_state, ik_solution;
   moveit_msgs::MoveItErrorCodes err;
   kinematics::KinematicsQueryOptions opts;
   kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
                                             seed_state);
-  if (!ik_solver_->searchPositionIK(pose, seed_state, 0.05, ik_solution, err,
-                                    opts)) {
+  if (!ik_solver_->searchPositionIK(pose, seed_state, 0.05, ik_solution,
+                                    ik_callback_fn, err, opts)) {
     return;
   }
 

@@ -32,6 +32,7 @@
 
 #pragma once
 
+#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <ros/ros.h>
 #include <ap_planning/ik_solver_base.hpp>
 
@@ -125,6 +126,8 @@ class IKSolver : public IKSolverBase {
   kinematics::KinematicsBasePtr ik_solver_;
 
   moveit::core::RobotStatePtr kinematic_state_;
+
+  planning_scene_monitor::PlanningSceneMonitorPtr psm_;
 
   // Planning parameters
   double joint_tolerance_;

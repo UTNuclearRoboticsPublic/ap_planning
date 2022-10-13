@@ -14,6 +14,7 @@
 #include <thread>
 #include <utility>
 
+#include <moveit/planning_scene_interface/planning_scene_interface.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <moveit/robot_state/robot_state.h>
@@ -94,8 +95,29 @@ int main(int argc, char **argv) {
   nh.param<bool>(ros::this_node::getName() + "/show_trajectories",
                  show_trajectories, true);
 
-  ROS_ERROR_STREAM(std::string(ros::this_node::getName() + "/num_sampling    ")
-                   << num_sample << "   " << num_naive);
+  // Add collision objects
+  moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
+  moveit_msgs::CollisionObject collision_object;
+  collision_object.header.frame_id = "panda_link0";
+  collision_object.id = "box1";
+  shape_msgs::SolidPrimitive primitive;
+  primitive.type = primitive.BOX;
+  primitive.dimensions.resize(3);
+  primitive.dimensions[primitive.BOX_X] = 0.1;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.4;
+  geometry_msgs::Pose box_pose;
+  box_pose.orientation.w = 1.0;
+  box_pose.position.x = 0.25;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.25;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  collision_object.operation = collision_object.ADD;
+
+  std::vector<moveit_msgs::CollisionObject> collision_objects;
+  collision_objects.push_back(collision_object);
 
   ros::Duration(2.0).sleep();
 
@@ -109,6 +131,7 @@ int main(int argc, char **argv) {
   ap_planning::APPlanningRequest single_request;
   single_request.screw_msg.header.frame_id = "panda_link0";
   single_request.ee_frame_name = "panda_link8";
+  single_request.planning_time = 10;
 
   // For now, all requests start at same point
   single_request.start_pose.pose.position.x = 0.5;
@@ -157,8 +180,9 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  std::stringstream ss;
-  ss << "Start of output\n";
+  std::stringstream ss_screw, ss_naive;
+  ss_screw << "Start of output\n";
+  ss_naive << "Start of output\n";
   size_t sample = 0;
   ap_planning::APPlanningResponse last_plan;
 
@@ -173,6 +197,7 @@ int main(int argc, char **argv) {
           "Press 'next' in the RvizVisualToolsGui window to plan next screw");
     }
 
+    planning_scene_interface.addCollisionObjects(collision_objects);
     show_screw(req.screw_msg, visual_tools);
 
     for (size_t i = 0; i < num_sample; ++i) {
@@ -193,12 +218,13 @@ int main(int argc, char **argv) {
         }
         last_plan = result;
       } else {
-        std::cout << "\n\n\nScrew planning: Fail!!\n\n";
+        std::cout << "\n\n\nScrew planning: Fail ("
+                  << ap_planning::toStr(success) << ")\n\n";
       }
 
-      ss << sample << ", Screw, " << ap_planning::toStr(success) << ", "
-         << result.percentage_complete * 100 << ", " << duration.count()
-         << ",\n";
+      ss_screw << sample << ", Screw, " << ap_planning::toStr(success) << ", "
+               << result.percentage_complete * 100 << ", " << duration.count()
+               << ",\n";
     }
 
     // Now move to naive planner
@@ -226,21 +252,24 @@ int main(int argc, char **argv) {
         }
         last_plan = naive_output;
       } else {
-        std::cout << "\n\n\nNaive planning: Fail!!\n\n";
+        std::cout << "\n\n\nNaive planning: Fail ("
+                  << ap_planning::toStr(naive_res) << ")\n\n";
         std::cout << "Trajectory is: " << naive_output.percentage_complete * 100
                   << "% complete, and has length: " << naive_output.path_length
                   << "\n";
       }
-      ss << sample << ", Naive, " << ap_planning::toStr(naive_res) << ", "
-         << naive_output.percentage_complete * 100 << ", " << duration.count()
-         << ",\n";
+      ss_naive << sample << ", Naive, " << ap_planning::toStr(naive_res) << ", "
+               << naive_output.percentage_complete * 100 << ", "
+               << duration.count() << ",\n";
     }
   }
 
   show_trajectory(last_plan.joint_trajectory, visual_tools);
 
-  ss << "End output\n";
-  std::cout << ss.str();
+  ss_screw << "End output\n";
+  ss_naive << "End output\n";
+  std::cout << ss_screw.str();
+  std::cout << ss_naive.str();
 
   ros::shutdown();
   return 0;

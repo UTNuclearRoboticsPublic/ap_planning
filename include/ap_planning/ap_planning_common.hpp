@@ -77,6 +77,7 @@ struct APPlanningRequest {
   affordance_primitive_msgs::ScrewStamped screw_msg;
   double theta;
   std::string ee_frame_name;
+  double planning_time;
 
   // Only set one of these
   std::vector<double> start_joint_state;

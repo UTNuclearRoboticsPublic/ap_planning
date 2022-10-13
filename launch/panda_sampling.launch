@@ -1,13 +1,15 @@
 <launch>
+  <arg name="num_sampling" default="1" />
+  <arg name="num_naive" default="1" />
+  <arg name="show_trajectories" default="true" />
+  <arg name="add_collision_objects" default="false" />
+
   <arg name="debug" default="false" />
   <arg unless="$(arg debug)" name="launch_prefix" value="" />
   <arg     if="$(arg debug)" name="launch_prefix" value="xterm -e gdb --args" />
 
   <arg name="move_group_name" default="panda_arm" />
   <arg name="ik_solver_name" default="ap_planning::IKSolver" />
-  <arg name="num_sampling" default="1" />
-  <arg name="num_naive" default="1" />
-  <arg name="show_trajectories" default="true" />
 
   <include file="$(find panda_moveit_config)/launch/planning_context.launch">
     <arg name="load_robot_description" value="true"/>
