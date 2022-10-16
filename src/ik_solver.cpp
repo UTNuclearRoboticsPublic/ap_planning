@@ -250,11 +250,18 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
 
   if (req.start_joint_state.size() != joint_model_group_->getVariableCount()) {
     // Use IK to find the first joint state
-    current_state->setToDefaultValues();
     const auto first_pose = req.start_pose.pose;
     trajectory_msgs::JointTrajectoryPoint point;
-    if (!solveIK(joint_model_group_, first_pose, req.ee_frame_name,
-                 *current_state, point)) {
+    bool found_start_config = false;
+    for (size_t i=0; i<5 ; ++i) {
+      current_state->setToRandomPositions();
+      if (solveIK(joint_model_group_, first_pose, req.ee_frame_name,
+                   *current_state, point)) {
+        found_start_config = true;
+        break;
+      }
+    }
+    if (!found_start_config) {
       return ap_planning::NO_IK_SOLUTION;
     }
     current_state->copyJointGroupPositions(joint_model_group_,

@@ -2,7 +2,7 @@
   <arg name="num_sampling" default="1" />
   <arg name="num_naive" default="1" />
   <arg name="show_trajectories" default="true" />
-  <arg name="add_collision_objects" default="false" />
+  <arg name="add_collision_objects" default="true" />
 
   <arg name="debug" default="false" />
   <arg unless="$(arg debug)" name="launch_prefix" value="" />
@@ -28,5 +28,6 @@
     <param name="num_sampling" type="int" value="$(arg num_sampling)" />
     <param name="num_naive" type="int" value="$(arg num_naive)" />
     <param name="show_trajectories" type="bool" value="$(arg show_trajectories)" />
+    <param name="add_collision_objects" type="bool" value="$(arg add_collision_objects)" />
   </node>
 </launch>

@@ -71,6 +71,153 @@ void show_trajectory(const trajectory_msgs::JointTrajectory &traj,
   visual_tools.publishTrajectoryPath(joint_traj);
 }
 
+std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
+  // Set up stuff same across all test cases
+  std::queue<moveit_msgs::CollisionObject> output;
+  moveit_msgs::CollisionObject collision_object;
+  collision_object.header.frame_id = "panda_link0";
+  collision_object.operation = collision_object.ADD;
+
+  geometry_msgs::Pose box_pose;
+  box_pose.orientation.w = 1.0;
+  shape_msgs::SolidPrimitive primitive;
+  primitive.type = primitive.BOX;
+  primitive.dimensions.resize(3);
+
+  // Screw one
+  collision_object.id = "screw1_box1";
+  primitive.dimensions[primitive.BOX_X] = 0.1;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.4;
+  box_pose.position.x = 0.25;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.25;
+
+  // Add screw one object
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  // Repeat
+  collision_object.id = "screw2_box1";
+  primitive.dimensions[primitive.BOX_X] = 0.5;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 0.6;
+  box_pose.position.x = -0.1;
+  box_pose.position.y = -0.25;
+  box_pose.position.z = 0.25;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  // collision_object.id = "screw3_box1";
+  // primitive.dimensions[primitive.BOX_X] = 1.5;
+  // primitive.dimensions[primitive.BOX_Y] = 0.1;
+  // primitive.dimensions[primitive.BOX_Z] = 0.6;
+  // box_pose.position.x = 0.5;
+  // box_pose.position.y = -0.3;
+  // box_pose.position.z = 0.25;
+
+  // collision_object.primitives.push_back(primitive);
+  // collision_object.primitive_poses.push_back(box_pose);
+  // output.push(collision_object);
+  // collision_object.primitives.clear();
+  // collision_object.primitive_poses.clear();
+
+  collision_object.id = "screw3_box1";
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.1;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.75;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  collision_object.id = "screw4_box1";
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 1.5;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = -0.2;
+  box_pose.position.z = 0.25;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 1.5;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = 0.2;
+  box_pose.position.z = 0.25;
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  collision_object.id = "screw5_box1";
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.1;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.65;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  collision_object.id = "screw6_box1";
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.1;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.65;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  collision_object.id = "screw7_box1";
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 1.5;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = -0.2;
+  box_pose.position.z = 0.25;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 1.5;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = 0.2;
+  box_pose.position.z = 0.25;
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  return output;
+}
+
 int main(int argc, char **argv) {
   ros::init(argc, argv, "ap_planning");
   ros::NodeHandle nh;
@@ -95,29 +242,13 @@ int main(int argc, char **argv) {
   nh.param<bool>(ros::this_node::getName() + "/show_trajectories",
                  show_trajectories, true);
 
+  bool use_obstacles;
+  nh.param<bool>(ros::this_node::getName() + "/add_collision_objects",
+                 use_obstacles, true);
+
   // Add collision objects
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
-  moveit_msgs::CollisionObject collision_object;
-  collision_object.header.frame_id = "panda_link0";
-  collision_object.id = "box1";
-  shape_msgs::SolidPrimitive primitive;
-  primitive.type = primitive.BOX;
-  primitive.dimensions.resize(3);
-  primitive.dimensions[primitive.BOX_X] = 0.1;
-  primitive.dimensions[primitive.BOX_Y] = 1.5;
-  primitive.dimensions[primitive.BOX_Z] = 0.4;
-  geometry_msgs::Pose box_pose;
-  box_pose.orientation.w = 1.0;
-  box_pose.position.x = 0.25;
-  box_pose.position.y = 0.0;
-  box_pose.position.z = 0.25;
-
-  collision_object.primitives.push_back(primitive);
-  collision_object.primitive_poses.push_back(box_pose);
-  collision_object.operation = collision_object.ADD;
-
-  std::vector<moveit_msgs::CollisionObject> collision_objects;
-  collision_objects.push_back(collision_object);
+  auto collision_objects = get_collision_objects(); 
 
   ros::Duration(2.0).sleep();
 
@@ -185,6 +316,7 @@ int main(int argc, char **argv) {
   ss_naive << "Start of output\n";
   size_t sample = 0;
   ap_planning::APPlanningResponse last_plan;
+  bool collision_obj_exists = false;
 
   // Plan each screw request
   while (planning_queue.size() > 0 && ros::ok()) {
@@ -197,13 +329,31 @@ int main(int argc, char **argv) {
           "Press 'next' in the RvizVisualToolsGui window to plan next screw");
     }
 
-    planning_scene_interface.addCollisionObjects(collision_objects);
+    if (use_obstacles && !collision_objects.empty()) {
+      if (collision_obj_exists) {
+        std::vector<std::string> remove_objs;
+        remove_objs.push_back(collision_objects.front().id);
+        planning_scene_interface.removeCollisionObjects(remove_objs);
+        collision_objects.pop();
+      }
+      std::vector<moveit_msgs::CollisionObject> collision_obj_vec;
+      collision_obj_vec.push_back(collision_objects.front());
+      planning_scene_interface.addCollisionObjects(collision_obj_vec);
+      collision_obj_exists = true;
+    }
+
     show_screw(req.screw_msg, visual_tools);
 
     for (size_t i = 0; i < num_sample; ++i) {
       ap_planning::APPlanningResponse result;
       auto start = std::chrono::high_resolution_clock::now();
-      ap_planning::Result success = ap_planner.plan(req, result);
+      ap_planning::Result success;
+      try {
+        success = ap_planner.plan(req, result);
+      } catch (...) {
+        ROS_ERROR_STREAM("Highest level catch");
+        success = ap_planning::Result::PLANNING_FAIL;
+      }
       auto stop = std::chrono::high_resolution_clock::now();
       auto duration =
           std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
