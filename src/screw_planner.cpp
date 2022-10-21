@@ -24,6 +24,7 @@ ScrewPlanner::ScrewPlanner(const std::string& move_group_name,
   ScrewValidityChecker::kinematic_model = kinematic_model_;
   ScrewValidSampler::kinematic_model = kinematic_model_;
 }
+ScrewPlanner::~ScrewPlanner() { cleanUp(); }
 
 ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
                                        APPlanningResponse& res) {
@@ -49,11 +50,13 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
 
   // Set up the state space for this plan
   if (!setupStateSpace(req)) {
+    cleanUp();
     return INITIALIZATION_FAIL;
   }
 
   // Set the parameters for the state space
   if (!setSpaceParameters(req, state_space_)) {
+    cleanUp();
     return INITIALIZATION_FAIL;
   }
 
@@ -63,6 +66,7 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
 
   // Set up... the SimpleSetup
   if (!setSimpleSetup(state_space_)) {
+    cleanUp();
     return INITIALIZATION_FAIL;
   }
 
@@ -70,10 +74,12 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
   std::vector<std::vector<double>> start_configs, goal_configs;
   if (passed_start_config_) {
     if (!findGoalStates(req, 10, start_configs, goal_configs)) {
+      cleanUp();
       return NO_IK_SOLUTION;
     }
   } else {
     if (!findStartGoalStates(req, 5, 10, start_configs, goal_configs)) {
+      cleanUp();
       return NO_IK_SOLUTION;
     }
   }
@@ -101,13 +107,14 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
     populateResponse(ss_->getSolutionPath(), req, res);
     result = SUCCESS;
   }
+  cleanUp();
+  return result;
+}
 
-  // Clean up
+void ScrewPlanner::cleanUp() {
   planning_scene_.reset();
   ScrewSampler::planning_scene.reset();
   ScrewValidSampler::planning_scene.reset();
-
-  return result;
 }
 
 bool ScrewPlanner::setupStateSpace(const APPlanningRequest& req) {

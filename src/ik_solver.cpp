@@ -57,6 +57,24 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
   return true;
 }
 
+void IKSolver::setUp(APPlanningResponse& res) {
+  // Set response to failing case
+  res.joint_trajectory.joint_names.clear();
+  res.joint_trajectory.points.clear();
+  res.percentage_complete = 0.0;
+  res.trajectory_is_valid = false;
+  res.path_length = -1;
+
+  // Get the new planning scene
+  if (!planning_scene_) {
+    psm_->requestPlanningSceneState();
+    planning_scene_ =
+        std::make_shared<planning_scene_monitor::LockedPlanningSceneRO>(psm_);
+  }
+}
+
+void IKSolver::cleanUp() { planning_scene_.reset(); }
+
 bool IKSolver::checkPointsAreClose(
     const trajectory_msgs::JointTrajectoryPoint& point_a,
     const trajectory_msgs::JointTrajectoryPoint& point_b) {
@@ -175,17 +193,7 @@ ap_planning::Result IKSolver::plan(
     return ap_planning::INVALID_GOAL;
   }
 
-  // Set response to failing case
-  res.joint_trajectory.joint_names.clear();
-  res.joint_trajectory.points.clear();
-  res.percentage_complete = 0.0;
-  res.trajectory_is_valid = false;
-  res.path_length = -1;
-
-  planning_scene_.reset();
-  psm_->requestPlanningSceneState();
-  planning_scene_ =
-      std::make_shared<planning_scene_monitor::LockedPlanningSceneRO>(psm_);
+  setUp(res);
 
   // Make a new robot state and copy the starting state
   moveit::core::RobotStatePtr current_state(
@@ -207,6 +215,7 @@ ap_planning::Result IKSolver::plan(
     trajectory_msgs::JointTrajectoryPoint point;
     point.time_from_start = wp.time_from_start;
     if (!solveIK(joint_model_group_, wp.pose, ee_name, *current_state, point)) {
+      cleanUp();
       return ap_planning::NO_IK_SOLUTION;
     }
     if (res.joint_trajectory.points.size() < 1) {
@@ -214,6 +223,7 @@ ap_planning::Result IKSolver::plan(
         ROS_ERROR_STREAM("Points are not close!\n"
                          << starting_point << "\n\n"
                          << point);
+        cleanUp();
         return ap_planning::INVALID_TRANSITION;
       }
     } else {
@@ -221,6 +231,7 @@ ap_planning::Result IKSolver::plan(
           verifyTransition(res.joint_trajectory.points.back(), point,
                            joint_model_group_, *current_state);
       if (transition_result != ap_planning::SUCCESS) {
+        cleanUp();
         return transition_result;
       }
     }
@@ -234,22 +245,13 @@ ap_planning::Result IKSolver::plan(
   res.trajectory_is_valid = true;
   res.path_length = -1;  // Not implemented
 
+  cleanUp();
   return ap_planning::SUCCESS;
 }
 
 ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
                                    APPlanningResponse& res) {
-  // Set response to failing case
-  res.joint_trajectory.joint_names.clear();
-  res.joint_trajectory.points.clear();
-  res.percentage_complete = 0.0;
-  res.trajectory_is_valid = false;
-  res.path_length = -1;
-
-  planning_scene_.reset();
-  psm_->requestPlanningSceneState();
-  planning_scene_ =
-      std::make_shared<planning_scene_monitor::LockedPlanningSceneRO>(psm_);
+  setUp(res);
 
   // Make a new robot state
   moveit::core::RobotStatePtr current_state(
@@ -270,6 +272,7 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
       }
     }
     if (!found_start_config) {
+      cleanUp();
       return ap_planning::NO_IK_SOLUTION;
     }
     current_state->copyJointGroupPositions(joint_model_group_,
@@ -305,6 +308,7 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
   std::optional<geometry_msgs::TransformStamped> tfmsg_moving_to_task =
       screw_executor_.getTFInfo(ap_goal);
   if (!tfmsg_moving_to_task.has_value()) {
+    cleanUp();
     return ap_planning::INVALID_GOAL;
   }
 
@@ -317,6 +321,7 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
   std::optional<affordance_primitives::AffordanceTrajectory> ap_trajectory =
       screw_executor_.getTrajectoryCommands(ap_goal, num_waypoints);
   if (!ap_trajectory.has_value()) {
+    cleanUp();
     return ap_planning::INVALID_GOAL;
   }
 

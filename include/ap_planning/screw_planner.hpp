@@ -52,6 +52,7 @@ class ScrewPlanner {
  public:
   ScrewPlanner(const std::string& move_group_name,
                const std::string& robot_description_name = "robot_description");
+  ~ScrewPlanner();
 
   /** Attempts to plan a screw-based trajectory
    *
@@ -79,6 +80,8 @@ class ScrewPlanner {
       planning_scene_;
   bool passed_start_config_;
   std::string robot_description_name_;
+
+  void cleanUp();
 
   bool setupStateSpace(const APPlanningRequest& req);
   affordance_primitives::TransformStamped getStartTF(

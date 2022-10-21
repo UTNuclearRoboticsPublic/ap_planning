@@ -50,7 +50,7 @@ const double CONDITION_NUM_LIMIT = 100;
 class IKSolver : public IKSolverBase {
  public:
   IKSolver(){};
-  ~IKSolver(){};
+  ~IKSolver() { cleanUp(); };
 
   /** Initializes the solver by looking up ROS parameters for:
    *
@@ -135,6 +135,9 @@ class IKSolver : public IKSolverBase {
   double joint_tolerance_;
   double waypoint_dist_, waypoint_ang_;
   double condition_num_limit_;
+
+  void setUp(APPlanningResponse& res);
+  void cleanUp();
 
   size_t calculateNumWaypoints(
       const affordance_primitive_msgs::ScrewStamped& screw_msg,
