@@ -37,6 +37,16 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
       std::make_shared<moveit::core::RobotState>(kinematic_model_);
   kinematic_state_->setToDefaultValues();
 
+  // Get the planning scene
+  psm_->requestPlanningSceneState();
+
+  planning_scene_ =
+      std::make_shared<planning_scene_monitor::LockedPlanningSceneRO>(psm_);
+
+  // Set planning scene for classes that will need it
+  ScrewSampler::planning_scene = planning_scene_;
+  ScrewValidSampler::planning_scene = planning_scene_;
+
   // Set up the state space for this plan
   if (!setupStateSpace(req)) {
     return INITIALIZATION_FAIL;
@@ -84,14 +94,20 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
 
   // Plan
   ob::PlannerStatus solved = ss_->solve(req.planning_time);
+  ap_planning::Result result = PLANNING_FAIL;
   if (solved) {
     ss_->simplifySolution(1.0);
 
     populateResponse(ss_->getSolutionPath(), req, res);
-    return SUCCESS;
+    result = SUCCESS;
   }
 
-  return PLANNING_FAIL;
+  // Clean up
+  planning_scene_.reset();
+  ScrewSampler::planning_scene.reset();
+  ScrewValidSampler::planning_scene.reset();
+
+  return result;
 }
 
 bool ScrewPlanner::setupStateSpace(const APPlanningRequest& req) {
@@ -160,7 +176,7 @@ bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
   pose_param->setValue(affordance_primitives::poseToStr(pose_msg));
   space->params().add(pose_param);
 
-  // Add EE frame name, move group, and robot_description parameters
+  // Add EE frame name and move group parameters
   auto ee_name_param =
       std::make_shared<ap_planning::StringParam>("ee_frame_name");
   ee_name_param->setValue(req.ee_frame_name);
@@ -169,10 +185,6 @@ bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
       std::make_shared<ap_planning::StringParam>("move_group");
   move_group_param->setValue(joint_model_group_->getName());
   space->params().add(move_group_param);
-  auto robot_description_param =
-      std::make_shared<ap_planning::StringParam>("robot_description_name");
-  robot_description_param->setValue(robot_description_name_);
-  space->params().add(robot_description_param);
 
   return true;
 }
@@ -301,8 +313,8 @@ void ScrewPlanner::increaseStateList(
   kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
       [this](const geometry_msgs::Pose& pose, const std::vector<double>& joints,
              moveit_msgs::MoveItErrorCodes& error_code) {
-        ikCallbackFnAdapter(joint_model_group_, kinematic_state_, psm_, joints,
-                            error_code);
+        ikCallbackFnAdapter(joint_model_group_, kinematic_state_,
+                            *planning_scene_, joints, error_code);
       };
 
   // Try to solve the IK

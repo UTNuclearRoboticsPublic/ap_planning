@@ -55,7 +55,7 @@ namespace ap_planning {
  */
 bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
                          const moveit::core::RobotStatePtr robot_state,
-                         planning_scene_monitor::PlanningSceneMonitorPtr psm,
+                         const planning_scene_monitor::LockedPlanningSceneRO ps,
                          const std::vector<double> &joints,
                          moveit_msgs::MoveItErrorCodes &error_code);
 
@@ -79,14 +79,17 @@ class ScrewValidSampler : public ob::ValidStateSampler {
   // NOTE: You must set this before creating instances of this class!
   inline static moveit::core::RobotModelPtr kinematic_model;
 
+  // Holds the planning scene, for collision checking
+  // NOTE: You must set this before creating instances of this class!
+  inline static std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
+      planning_scene;
+
  protected:
   ompl::RNG rng_;
   ob::RealVectorBounds screw_bounds_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
   kinematics::KinematicsBasePtr ik_solver_;
-  // TODO: think about sharing psm like kinematic model
-  planning_scene_monitor::PlanningSceneMonitorPtr psm_;
   affordance_primitives::ScrewAxis screw_axis_;
   Eigen::Isometry3d start_pose_;
 };
@@ -112,12 +115,16 @@ class ScrewSampler : public ob::StateSampler {
   // NOTE: You must set this before creating instances of this class!
   inline static moveit::core::RobotModelPtr kinematic_model;
 
+  // Holds the planning scene, for collision checking
+  // NOTE: You must set this before creating instances of this class!
+  inline static std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
+      planning_scene;
+
  protected:
   ompl::RNG rng_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
   kinematics::KinematicsBasePtr ik_solver_;
-  planning_scene_monitor::PlanningSceneMonitorPtr psm_;
   ob::RealVectorBounds screw_bounds_;
   affordance_primitives::ScrewAxis screw_axis_;
   Eigen::Isometry3d start_pose_;

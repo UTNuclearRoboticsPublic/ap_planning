@@ -115,20 +115,6 @@ std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
   collision_object.primitives.clear();
   collision_object.primitive_poses.clear();
 
-  // collision_object.id = "screw3_box1";
-  // primitive.dimensions[primitive.BOX_X] = 1.5;
-  // primitive.dimensions[primitive.BOX_Y] = 0.1;
-  // primitive.dimensions[primitive.BOX_Z] = 0.6;
-  // box_pose.position.x = 0.5;
-  // box_pose.position.y = -0.3;
-  // box_pose.position.z = 0.25;
-
-  // collision_object.primitives.push_back(primitive);
-  // collision_object.primitive_poses.push_back(box_pose);
-  // output.push(collision_object);
-  // collision_object.primitives.clear();
-  // collision_object.primitive_poses.clear();
-
   collision_object.id = "screw3_box1";
   primitive.dimensions[primitive.BOX_X] = 1.5;
   primitive.dimensions[primitive.BOX_Y] = 1.5;
@@ -248,7 +234,7 @@ int main(int argc, char **argv) {
 
   // Add collision objects
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
-  auto collision_objects = get_collision_objects(); 
+  auto collision_objects = get_collision_objects();
 
   ros::Duration(2.0).sleep();
 
@@ -345,15 +331,10 @@ int main(int argc, char **argv) {
     show_screw(req.screw_msg, visual_tools);
 
     for (size_t i = 0; i < num_sample; ++i) {
+      std::cout << "Starting i = " << i << "\n";
       ap_planning::APPlanningResponse result;
       auto start = std::chrono::high_resolution_clock::now();
-      ap_planning::Result success;
-      try {
-        success = ap_planner.plan(req, result);
-      } catch (...) {
-        ROS_ERROR_STREAM("Highest level catch");
-        success = ap_planning::Result::PLANNING_FAIL;
-      }
+      ap_planning::Result success = ap_planner.plan(req, result);
       auto stop = std::chrono::high_resolution_clock::now();
       auto duration =
           std::chrono::duration_cast<std::chrono::microseconds>(stop - start);

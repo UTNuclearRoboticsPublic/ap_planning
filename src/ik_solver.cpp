@@ -131,12 +131,10 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
       [this, jmg, robot_state](const geometry_msgs::Pose& pose,
                                const std::vector<double>& joints,
                                moveit_msgs::MoveItErrorCodes& error_code) {
-        psm_->requestPlanningSceneState();
-        planning_scene_monitor::LockedPlanningSceneRO ps(psm_);
         auto state_cpy = robot_state;
         state_cpy.setJointGroupPositions(jmg, joints);
         collision_detection::CollisionResult::ContactMap contacts;
-        ps->getCollidingPairs(contacts, state_cpy);
+        (*planning_scene_)->getCollidingPairs(contacts, state_cpy);
 
         if (contacts.size() == 0) {
           error_code.val = moveit_msgs::MoveItErrorCodes::SUCCESS;
@@ -183,6 +181,11 @@ ap_planning::Result IKSolver::plan(
   res.percentage_complete = 0.0;
   res.trajectory_is_valid = false;
   res.path_length = -1;
+
+  planning_scene_.reset();
+  psm_->requestPlanningSceneState();
+  planning_scene_ =
+      std::make_shared<planning_scene_monitor::LockedPlanningSceneRO>(psm_);
 
   // Make a new robot state and copy the starting state
   moveit::core::RobotStatePtr current_state(
@@ -243,6 +246,11 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
   res.trajectory_is_valid = false;
   res.path_length = -1;
 
+  planning_scene_.reset();
+  psm_->requestPlanningSceneState();
+  planning_scene_ =
+      std::make_shared<planning_scene_monitor::LockedPlanningSceneRO>(psm_);
+
   // Make a new robot state
   moveit::core::RobotStatePtr current_state(
       new moveit::core::RobotState(kinematic_model_));
@@ -253,10 +261,10 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     const auto first_pose = req.start_pose.pose;
     trajectory_msgs::JointTrajectoryPoint point;
     bool found_start_config = false;
-    for (size_t i=0; i<5 ; ++i) {
+    for (size_t i = 0; i < 5; ++i) {
       current_state->setToRandomPositions();
       if (solveIK(joint_model_group_, first_pose, req.ee_frame_name,
-                   *current_state, point)) {
+                  *current_state, point)) {
         found_start_config = true;
         break;
       }

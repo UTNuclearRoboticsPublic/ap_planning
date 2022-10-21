@@ -75,6 +75,8 @@ class ScrewPlanner {
   std::shared_ptr<moveit::core::JointModelGroup> joint_model_group_;
   kinematics::KinematicsBasePtr ik_solver_;
   planning_scene_monitor::PlanningSceneMonitorPtr psm_;
+  std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
+      planning_scene_;
   bool passed_start_config_;
   std::string robot_description_name_;
 

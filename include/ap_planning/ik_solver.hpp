@@ -128,6 +128,8 @@ class IKSolver : public IKSolverBase {
   moveit::core::RobotStatePtr kinematic_state_;
 
   planning_scene_monitor::PlanningSceneMonitorPtr psm_;
+  std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
+      planning_scene_;
 
   // Planning parameters
   double joint_tolerance_;
