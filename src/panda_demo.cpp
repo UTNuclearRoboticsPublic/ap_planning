@@ -290,6 +290,19 @@ int main(int argc, char **argv) {
   single_request.screw_msg.is_pure_translation = true;
   planning_queue.push(single_request);
 
+  // This is the moveit ompl_constrained_planning tutorial line
+  if (!use_obstacles) {
+    single_request.start_joint_state = default_joint_state;
+    single_request.theta = 0.3;
+    single_request.screw_msg.origin.x = 0.307;
+    single_request.screw_msg.origin.y = 0;
+    single_request.screw_msg.origin.z = 0.59;
+    single_request.screw_msg.axis.x = 0;
+    single_request.screw_msg.axis.y = 1;
+    single_request.screw_msg.axis.z = -1;
+    planning_queue.push(single_request);
+  }
+
   ap_planning::ScrewPlanner ap_planner("panda_arm");
   ap_planning::NaivePlanner naive_planner(nh);
   if (!naive_planner.initialize()) {
