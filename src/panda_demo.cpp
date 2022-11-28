@@ -281,6 +281,7 @@ int main(int argc, char **argv) {
   planning_queue.push(single_request);
 
   single_request.screw_msg.origin = geometry_msgs::Point();
+  single_request.screw_msg.origin.z = -0.25;
   planning_queue.push(single_request);
 
   single_request.theta = 0.75;  // meters
@@ -368,7 +369,7 @@ int main(int argc, char **argv) {
 
       ss_screw << sample << ", Screw, " << ap_planning::toStr(success) << ", "
                << result.percentage_complete * 100 << ", " << duration.count()
-               << ",\n";
+               << ", " << result.path_length << ",\n";
     }
 
     // Now move to naive planner

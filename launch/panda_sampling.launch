@@ -19,7 +19,7 @@
     <arg name="use_rviz" value="false"/>
   </include>
 
-  <node name = "panda_rviz" pkg = "rviz" type = "rviz" args = "-d $(find ap_planning)/config/panda.rviz"/>
+  <node name="panda_rviz" pkg ="rviz" type ="rviz" args ="-d $(find ap_planning)/config/panda.rviz"/>
 
   <node name="panda_sampling" pkg="ap_planning" type="panda_demo" respawn="false" output="screen" launch-prefix="$(arg launch_prefix)">
     <rosparam command="load" file="$(find ap_planning)/config/panda_tracik_kinematics.yaml"/>
