@@ -89,7 +89,9 @@ int main(int argc, char **argv) {
 
   std::queue<ap_planning::APPlanningRequest> planning_queue;
   ap_planning::APPlanningRequest single_request;
-  single_request.screw_msg.header.frame_id = "map";
+  ap_planning::ScrewSegment single_screw;
+  single_screw.screw_msg.header.frame_id = "map";
+  single_request.screw_path.push_back(single_screw);
   single_request.ee_frame_name = "link7";
 
   // For now, all requests start at same point
@@ -99,9 +101,10 @@ int main(int argc, char **argv) {
   single_request.start_pose.pose.orientation.w = 0;
 
   // Add some test cases
-  single_request.theta = 0.25 * M_PI;
-  single_request.screw_msg.origin = single_request.start_pose.pose.position;
-  single_request.screw_msg.axis.x = 1;
+  single_request.screw_path.at(0).theta = 0.25 * M_PI;
+  single_request.screw_path.at(0).screw_msg.origin =
+      single_request.start_pose.pose.position;
+  single_request.screw_path.at(0).screw_msg.axis.x = 1;
   planning_queue.push(single_request);
 
   // This time, send a joint configuration
@@ -110,26 +113,27 @@ int main(int argc, char **argv) {
   planning_queue.push(single_request);
 
   single_request.start_joint_state.clear();
-  single_request.theta = 0.5 * M_PI;
-  single_request.screw_msg.axis.x = -1;
+  single_request.screw_path.at(0).theta = 0.5 * M_PI;
+  single_request.screw_path.at(0).screw_msg.axis.x = -1;
   planning_queue.push(single_request);
 
-  single_request.theta = 0.25 * M_PI;
-  single_request.screw_msg.axis.x = 0;
-  single_request.screw_msg.axis.z = 1;
+  single_request.screw_path.at(0).theta = 0.25 * M_PI;
+  single_request.screw_path.at(0).screw_msg.axis.x = 0;
+  single_request.screw_path.at(0).screw_msg.axis.z = 1;
   planning_queue.push(single_request);
 
-  single_request.screw_msg.origin.x -= 0.1;
-  single_request.screw_msg.pitch = 0.1;
+  single_request.screw_path.at(0).screw_msg.origin.x -= 0.1;
+  single_request.screw_path.at(0).screw_msg.pitch = 0.1;
   planning_queue.push(single_request);
 
-  single_request.screw_msg.origin = geometry_msgs::Point();
+  single_request.screw_path.at(0).screw_msg.origin = geometry_msgs::Point();
   planning_queue.push(single_request);
 
-  single_request.screw_msg.origin = single_request.start_pose.pose.position;
-  single_request.screw_msg.axis.x = -1;
-  single_request.screw_msg.axis.z = 1;
-  single_request.screw_msg.is_pure_translation = true;
+  single_request.screw_path.at(0).screw_msg.origin =
+      single_request.start_pose.pose.position;
+  single_request.screw_path.at(0).screw_msg.axis.x = -1;
+  single_request.screw_path.at(0).screw_msg.axis.z = 1;
+  single_request.screw_path.at(0).screw_msg.is_pure_translation = true;
   planning_queue.push(single_request);
 
   ap_planning::ScrewPlanner ap_planner("puma_arm_and_base");
@@ -141,7 +145,7 @@ int main(int argc, char **argv) {
     visual_tools.prompt(
         "Press 'next' in the RvizVisualToolsGui window to start the demo");
 
-    show_screw(req.screw_msg, visual_tools);
+    show_screw(req.screw_path.at(0).screw_msg, visual_tools);
 
     ap_planning::APPlanningResponse result;
     if (ap_planner.plan(req, result) == ap_planning::SUCCESS) {

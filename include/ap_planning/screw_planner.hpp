@@ -35,8 +35,8 @@
 #include <ompl/geometric/SimpleSetup.h>
 #include <ompl/geometric/planners/prm/PRM.h>
 #include <ompl/geometric/planners/prm/PRMstar.h>
-#include <ompl/geometric/planners/rrt/RRTConnect.h>
 #include <ompl/geometric/planners/rrt/RRT.h>
+#include <ompl/geometric/planners/rrt/RRTConnect.h>
 #include <ap_planning/ap_planning_common.hpp>
 #include <ap_planning/state_sampling.hpp>
 #include <ap_planning/state_utils.hpp>

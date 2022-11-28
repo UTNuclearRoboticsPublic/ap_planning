@@ -93,8 +93,10 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
   // Create and populate the goal object
   auto goal_obj = std::make_shared<ScrewGoal>(ss_->getSpaceInformation());
   for (const auto& goal_state : goal_configs) {
+    // TODO handle multi-screw
     goal_obj->addState(vectorToState(
-        state_space_, std::vector<double>(1, req.theta), goal_state));
+        state_space_, std::vector<double>(1, req.screw_path.at(0).theta),
+        goal_state));
   }
   ss_->setGoal(goal_obj);
 
@@ -124,10 +126,11 @@ bool ScrewPlanner::setupStateSpace(const APPlanningRequest& req) {
   auto screw_space = std::make_shared<ob::RealVectorStateSpace>();
   auto joint_space = std::make_shared<ob::RealVectorStateSpace>();
 
-  // Add screw dimension
-  // TODO: multi-DoF problems?
+  // Add screw dimensions
   // TODO: make sure the theta is positive
-  screw_space->addDimension(0, req.theta);
+  for (const auto& segment : req.screw_path) {
+    screw_space->addDimension(0, segment.theta);
+  }
 
   // Go through joint group and add bounds for each joint
   for (const moveit::core::JointModel* joint :
@@ -160,15 +163,18 @@ bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
                                       ompl::base::StateSpacePtr& space) {
   // We need to transform the screw to be in the starting frame
   geometry_msgs::TransformStamped tf_msg = getStartTF(req);
-  auto transformed_screw =
-      affordance_primitives::transformScrew(req.screw_msg, tf_msg);
+  // TODO handle multi-screw
+  auto transformed_screw = affordance_primitives::transformScrew(
+      req.screw_path.at(0).screw_msg, tf_msg);
 
   // Set the screw axis from transformed screw
   screw_axis_.setScrewAxis(transformed_screw);
 
   // Calculate the goal pose and set
   const Eigen::Isometry3d planning_to_start = tf2::transformToEigen(tf_msg);
-  goal_pose_ = planning_to_start * screw_axis_.getTF(req.theta);
+  // TODO handle multi-screw
+  goal_pose_ =
+      planning_to_start * screw_axis_.getTF(req.screw_path.at(0).theta);
 
   // Add screw param (from starting pose screw)
   auto screw_param = std::make_shared<ap_planning::ScrewParam>("screw_param");
@@ -219,7 +225,8 @@ affordance_primitives::TransformStamped ScrewPlanner::getStartTF(
   }
 
   // Set the start pose
-  tf_msg.header.frame_id = req.screw_msg.header.frame_id;
+  // TODO handle multi-screw
+  tf_msg.header.frame_id = req.screw_path.at(0).screw_msg.header.frame_id;
   tf_msg.child_frame_id = req.ee_frame_name;
   start_pose_ = tf2::transformToEigen(tf_msg);
 
@@ -373,7 +380,8 @@ void ScrewPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
       res.trajectory_is_valid = false;
 
       // Calculate the percent through the trajectory we made it
-      res.percentage_complete = screw_state[0] / req.theta;
+      // TODO handle multi-screw
+      res.percentage_complete = screw_state[0] / req.screw_path.at(0).theta;
       return;
     }
 
@@ -393,13 +401,15 @@ void ScrewPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
       *solution.getStates().back()->as<ob::CompoundStateSpace::StateType>();
   const ob::RealVectorStateSpace::StateType& screw_state =
       *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
-  const double err = fabs(req.theta - screw_state[0]);
+  // TODO handle multi-screw
+  const double err = fabs(req.screw_path.at(0).theta - screw_state[0]);
   if (err > 0.01) {
     res.trajectory_is_valid = false;
   } else {
     res.trajectory_is_valid = true;
   }
-  res.percentage_complete = screw_state[0] / req.theta;
+  // TODO handle multi-screw
+  res.percentage_complete = screw_state[0] / req.screw_path.at(0).theta;
   res.path_length = solution.length();
 }
 }  // namespace ap_planning

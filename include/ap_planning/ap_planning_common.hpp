@@ -37,6 +37,7 @@
 #include <trajectory_msgs/JointTrajectory.h>
 
 #include <string>
+#include <vector>
 
 namespace ap_planning {
 enum Result {
@@ -67,15 +68,22 @@ inline std::string toStr(const Result result) {
 }
 
 /**
+ * A struct for describing a single segment of a screw path
+ */
+struct ScrewSegment {
+  affordance_primitive_msgs::ScrewStamped screw_msg;
+  double theta;
+};
+
+/**
  * A struct for holding all the information needed to make an AP planning
  * request
  *
- * Note: the screw axis (screw_msg) and starting pose (start_pose) should be
+ * Note: the screw axes (in segments) and starting pose (start_pose) should be
  * given with respect to the planning frame
  */
 struct APPlanningRequest {
-  affordance_primitive_msgs::ScrewStamped screw_msg;
-  double theta;
+  std::vector<ScrewSegment> screw_path;
   std::string ee_frame_name;
   double planning_time;
 

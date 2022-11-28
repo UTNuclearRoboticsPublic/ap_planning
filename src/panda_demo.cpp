@@ -246,7 +246,9 @@ int main(int argc, char **argv) {
 
   std::queue<ap_planning::APPlanningRequest> planning_queue;
   ap_planning::APPlanningRequest single_request;
-  single_request.screw_msg.header.frame_id = "panda_link0";
+  ap_planning::ScrewSegment single_screw;
+  single_screw.screw_msg.header.frame_id = "panda_link0";
+  single_request.screw_path.push_back(single_screw);
   single_request.ee_frame_name = "panda_link8";
   single_request.planning_time = 10;
 
@@ -257,9 +259,10 @@ int main(int argc, char **argv) {
   single_request.start_pose.pose.orientation.w = 0;
 
   // Add some test cases
-  single_request.theta = 0.25 * M_PI;
-  single_request.screw_msg.origin = single_request.start_pose.pose.position;
-  single_request.screw_msg.axis.x = 1;
+  single_request.screw_path.at(0).theta = 0.25 * M_PI;
+  single_request.screw_path.at(0).screw_msg.origin =
+      single_request.start_pose.pose.position;
+  single_request.screw_path.at(0).screw_msg.axis.x = 1;
   planning_queue.push(single_request);
 
   // This time, send a joint configuration
@@ -267,40 +270,41 @@ int main(int argc, char **argv) {
   planning_queue.push(single_request);
 
   single_request.start_joint_state.clear();
-  single_request.theta = 0.5 * M_PI;
-  single_request.screw_msg.axis.x = -1;
+  single_request.screw_path.at(0).theta = 0.5 * M_PI;
+  single_request.screw_path.at(0).screw_msg.axis.x = -1;
   planning_queue.push(single_request);
 
-  single_request.theta = 0.25 * M_PI;
-  single_request.screw_msg.axis.x = 0;
-  single_request.screw_msg.axis.z = 1;
+  single_request.screw_path.at(0).theta = 0.25 * M_PI;
+  single_request.screw_path.at(0).screw_msg.axis.x = 0;
+  single_request.screw_path.at(0).screw_msg.axis.z = 1;
   planning_queue.push(single_request);
 
-  single_request.screw_msg.origin.x -= 0.1;
-  single_request.screw_msg.pitch = 0.1;
+  single_request.screw_path.at(0).screw_msg.origin.x -= 0.1;
+  single_request.screw_path.at(0).screw_msg.pitch = 0.1;
   planning_queue.push(single_request);
 
-  single_request.screw_msg.origin = geometry_msgs::Point();
-  single_request.screw_msg.origin.z = -0.25;
+  single_request.screw_path.at(0).screw_msg.origin = geometry_msgs::Point();
+  single_request.screw_path.at(0).screw_msg.origin.z = -0.25;
   planning_queue.push(single_request);
 
-  single_request.theta = 0.75;  // meters
-  single_request.screw_msg.origin = single_request.start_pose.pose.position;
-  single_request.screw_msg.axis.x = -1;
-  single_request.screw_msg.axis.z = 1;
-  single_request.screw_msg.is_pure_translation = true;
+  single_request.screw_path.at(0).theta = 0.75;  // meters
+  single_request.screw_path.at(0).screw_msg.origin =
+      single_request.start_pose.pose.position;
+  single_request.screw_path.at(0).screw_msg.axis.x = -1;
+  single_request.screw_path.at(0).screw_msg.axis.z = 1;
+  single_request.screw_path.at(0).screw_msg.is_pure_translation = true;
   planning_queue.push(single_request);
 
   // This is the moveit ompl_constrained_planning tutorial line
   if (!use_obstacles) {
     single_request.start_joint_state = default_joint_state;
-    single_request.theta = 0.3;
-    single_request.screw_msg.origin.x = 0.307;
-    single_request.screw_msg.origin.y = 0;
-    single_request.screw_msg.origin.z = 0.59;
-    single_request.screw_msg.axis.x = 0;
-    single_request.screw_msg.axis.y = 1;
-    single_request.screw_msg.axis.z = -1;
+    single_request.screw_path.at(0).theta = 0.3;
+    single_request.screw_path.at(0).screw_msg.origin.x = 0.307;
+    single_request.screw_path.at(0).screw_msg.origin.y = 0;
+    single_request.screw_path.at(0).screw_msg.origin.z = 0.59;
+    single_request.screw_path.at(0).screw_msg.axis.x = 0;
+    single_request.screw_path.at(0).screw_msg.axis.y = 1;
+    single_request.screw_path.at(0).screw_msg.axis.z = -1;
     planning_queue.push(single_request);
   }
 
@@ -342,7 +346,7 @@ int main(int argc, char **argv) {
       collision_obj_exists = true;
     }
 
-    show_screw(req.screw_msg, visual_tools);
+    show_screw(req.screw_path.at(0).screw_msg, visual_tools);
 
     for (size_t i = 0; i < num_sample; ++i) {
       std::cout << "Starting i = " << i << "\n";

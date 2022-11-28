@@ -251,6 +251,11 @@ ap_planning::Result IKSolver::plan(
 
 ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
                                    APPlanningResponse& res) {
+  if (req.screw_path.size() < 1) {
+    ROS_WARN_STREAM("Screw path is empty");
+    return INVALID_GOAL;
+  }
+
   setUp(res);
 
   // Make a new robot state
@@ -298,8 +303,8 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
   ap_goal.moving_to_task_frame.child_frame_id =
       kinematic_model_->getModelFrame();
 
-  ap_goal.screw = req.screw_msg;
-  ap_goal.screw_distance = req.theta;
+  ap_goal.screw = req.screw_path.front().screw_msg;
+  ap_goal.screw_distance = req.screw_path.front().theta;
 
   // TODO: think about getting this in as a param
   ap_goal.theta_dot = 0.1;
@@ -312,21 +317,36 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     return ap_planning::INVALID_GOAL;
   }
 
-  // Figure out how many waypoints to do
-  const size_t num_waypoints = calculateNumWaypoints(
-      ap_goal.screw, *tfmsg_moving_to_task, ap_goal.screw_distance);
-  const double wp_percent = 1 / double(num_waypoints);
+  // Go through each screw axis and add it to the path
+  affordance_primitives::AffordanceTrajectory full_trajectory;
+  ros::Duration duration_shift(0);
+  for (const auto& segment : req.screw_path) {
+    // Figure out how many waypoints to do
+    const size_t num_waypoints = calculateNumWaypoints(
+        segment.screw_msg, *tfmsg_moving_to_task, segment.theta);
 
-  // Generate the affordance trajectory
-  std::optional<affordance_primitives::AffordanceTrajectory> ap_trajectory =
-      screw_executor_.getTrajectoryCommands(ap_goal, num_waypoints);
-  if (!ap_trajectory.has_value()) {
-    cleanUp();
-    return ap_planning::INVALID_GOAL;
+    ap_goal.screw = segment.screw_msg;
+    ap_goal.screw_distance = segment.theta;
+
+    // Generate the affordance trajectory
+    std::optional<affordance_primitives::AffordanceTrajectory> ap_trajectory =
+        screw_executor_.getTrajectoryCommands(ap_goal, num_waypoints);
+    if (!ap_trajectory.has_value()) {
+      cleanUp();
+      return ap_planning::INVALID_GOAL;
+    }
+
+    // Add trajectory
+    for (const auto& wp : ap_trajectory->trajectory) {
+      full_trajectory.trajectory.push_back(wp);
+      full_trajectory.trajectory.back().time_from_start += duration_shift;
+    }
+
+    duration_shift = full_trajectory.trajectory.back().time_from_start;
   }
 
   // Do the planning
-  return plan(*ap_trajectory, starting_joint_config, req.ee_frame_name, res);
+  return plan(full_trajectory, starting_joint_config, req.ee_frame_name, res);
 }
 
 size_t IKSolver::calculateNumWaypoints(
