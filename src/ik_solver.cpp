@@ -303,30 +303,27 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
   ap_goal.moving_to_task_frame.child_frame_id =
       kinematic_model_->getModelFrame();
 
-  ap_goal.screw = req.screw_path.front().screw_msg;
-  ap_goal.screw_distance = req.screw_path.front().theta;
-
-  // TODO: think about getting this in as a param
-  ap_goal.theta_dot = 0.1;
-
-  // Check the tf was valid
-  std::optional<geometry_msgs::TransformStamped> tfmsg_moving_to_task =
-      screw_executor_.getTFInfo(ap_goal);
-  if (!tfmsg_moving_to_task.has_value()) {
-    cleanUp();
-    return ap_planning::INVALID_GOAL;
-  }
-
   // Go through each screw axis and add it to the path
   affordance_primitives::AffordanceTrajectory full_trajectory;
   ros::Duration duration_shift(0);
   for (const auto& segment : req.screw_path) {
+    ap_goal.screw = segment.screw_msg;
+    ap_goal.screw_distance = segment.theta;
+
+    // TODO: think about getting this in as a param
+    ap_goal.theta_dot = 0.1;
+
+    // Check the tf was valid
+    std::optional<geometry_msgs::TransformStamped> tfmsg_moving_to_task =
+        screw_executor_.getTFInfo(ap_goal);
+    if (!tfmsg_moving_to_task.has_value()) {
+      cleanUp();
+      return ap_planning::INVALID_GOAL;
+    }
+
     // Figure out how many waypoints to do
     const size_t num_waypoints = calculateNumWaypoints(
         segment.screw_msg, *tfmsg_moving_to_task, segment.theta);
-
-    ap_goal.screw = segment.screw_msg;
-    ap_goal.screw_distance = segment.theta;
 
     // Generate the affordance trajectory
     std::optional<affordance_primitives::AffordanceTrajectory> ap_trajectory =
@@ -342,7 +339,16 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
       full_trajectory.trajectory.back().time_from_start += duration_shift;
     }
 
+    // Set up for next segment
     duration_shift = full_trajectory.trajectory.back().time_from_start;
+    duration_shift += ap_trajectory->trajectory.at(1).time_from_start;
+
+    Eigen::Isometry3d last_wp;
+    tf2::fromMsg(full_trajectory.trajectory.back().pose, last_wp);
+    ap_goal.moving_to_task_frame = tf2::eigenToTransform(last_wp.inverse());
+    ap_goal.moving_to_task_frame.header.frame_id = req.ee_frame_name;
+    ap_goal.moving_to_task_frame.child_frame_id =
+        kinematic_model_->getModelFrame();
   }
 
   // Do the planning
