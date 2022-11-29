@@ -163,12 +163,10 @@ bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
                                       ompl::base::StateSpacePtr& space) {
   // We need to transform the screw to be in the starting frame
   geometry_msgs::TransformStamped tf_msg = getStartTF(req);
-  // TODO handle multi-screw
-  auto transformed_screw = affordance_primitives::transformScrew(
-      req.screw_path.at(0).screw_msg, tf_msg);
 
   // Set the screw axis from transformed screw
-  screw_axis_.setScrewAxis(transformed_screw);
+  screw_axis_.setScrewAxis(req.screw_path.at(0).screw_msg);
+  // TODO handle multi-screw
 
   // Calculate the goal pose and set
   const Eigen::Isometry3d planning_to_start = tf2::transformToEigen(tf_msg);
@@ -179,7 +177,7 @@ bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
   // Add screw param (from starting pose screw)
   auto screw_param = std::make_shared<ap_planning::ScrewParam>("screw_param");
   screw_param->setValue(
-      affordance_primitives::screwMsgToStr(transformed_screw));
+      affordance_primitives::screwMsgToStr(req.screw_path.at(0).screw_msg));
   space->params().add(screw_param);
 
   // Add starting pose
