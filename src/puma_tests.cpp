@@ -96,26 +96,35 @@ std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
   // Add screw one object
   collision_object.primitives.push_back(primitive);
   collision_object.primitive_poses.push_back(box_pose);
-  // output.push(collision_object);
+  output.push(collision_object);
   collision_object.primitives.clear();
   collision_object.primitive_poses.clear();
 
   // Repeat
   collision_object.id = "screw2_box1";
-  primitive.dimensions[primitive.BOX_X] = 1.75;
-  primitive.dimensions[primitive.BOX_Y] = 0.2;
-  primitive.dimensions[primitive.BOX_Z] = 2;
-  box_pose.position.x = 0;
-  box_pose.position.y = -0.75;
-  box_pose.position.z = 0.0;
+  primitive.dimensions[primitive.BOX_X] = 1;
+  primitive.dimensions[primitive.BOX_Y] = 0.75;
+  primitive.dimensions[primitive.BOX_Z] = 1;
+  box_pose.position.x = 0.25;
+  box_pose.position.y = 0.25;
+  box_pose.position.z = -0.5;
 
-  // collision_object.primitives.push_back(primitive);
-  // collision_object.primitive_poses.push_back(box_pose);
-  primitive.dimensions[primitive.BOX_X] = 1.75;
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  primitive.dimensions[primitive.BOX_X] = 1;
   primitive.dimensions[primitive.BOX_Y] = 0.75;
   primitive.dimensions[primitive.BOX_Z] = 1;
   box_pose.position.x = 4;
-  box_pose.position.y = 0.3;
+  box_pose.position.y = 0.25;
+  box_pose.position.z = -0.5;
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+
+  primitive.dimensions[primitive.BOX_X] = 0.25;
+  primitive.dimensions[primitive.BOX_Y] = 0.25;
+  primitive.dimensions[primitive.BOX_Z] = 1;
+  box_pose.position.x = 2.2;
+  box_pose.position.y = -0.75;
   box_pose.position.z = -0.5;
   collision_object.primitives.push_back(primitive);
   collision_object.primitive_poses.push_back(box_pose);
@@ -123,19 +132,19 @@ std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
   collision_object.primitives.clear();
   collision_object.primitive_poses.clear();
 
-  // collision_object.id = "screw3_box1";
-  // primitive.dimensions[primitive.BOX_X] = 1.5;
-  // primitive.dimensions[primitive.BOX_Y] = 1.5;
-  // primitive.dimensions[primitive.BOX_Z] = 0.1;
-  // box_pose.position.x = 0.5;
-  // box_pose.position.y = 0.0;
-  // box_pose.position.z = 0.75;
+  collision_object.id = "screw3_box1";
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.1;
+  box_pose.position.x = 2.5;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.75;
 
-  // collision_object.primitives.push_back(primitive);
-  // collision_object.primitive_poses.push_back(box_pose);
-  // output.push(collision_object);
-  // collision_object.primitives.clear();
-  // collision_object.primitive_poses.clear();
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
 
   // collision_object.id = "screw4_box1";
   // primitive.dimensions[primitive.BOX_X] = 1.5;
@@ -224,7 +233,7 @@ int main(int argc, char **argv) {
 
   moveit::core::RobotStatePtr kinematic_state(
       new moveit::core::RobotState(kinematic_model));
-  std::vector<double> default_joint_state{0.5, 0.5, 0, 0, 0, 0, 0, 0, 0};
+  std::vector<double> default_joint_state{0, 0, 0, 0, 0, 0, 0, 0, 0};
   kinematic_state->setJointGroupPositions("puma_arm_and_base",
                                           default_joint_state);
 
@@ -271,21 +280,26 @@ int main(int argc, char **argv) {
   single_request.screw_path.at(0).screw_msg.origin =
       single_request.start_pose.pose.position;
   single_request.screw_path.at(0).screw_msg.axis.x = 1;
-  // planning_queue.push(single_request);
+  planning_queue.push(single_request);
 
   // A long linear plan
   single_request.screw_path.at(0).theta = 5;
   single_request.screw_path.at(0).screw_msg.is_pure_translation = true;
-  // single_request.start_pose.pose.orientation.x = 0.5*sqrt(2);
-  // single_request.start_pose.pose.orientation.w = 0.5*sqrt(2);
-  // single_request.start_pose.pose.position.z = 0.5;
+  single_request.screw_path.at(0).screw_msg.origin.z = 0.1;
+  single_request.start_pose.pose.position.z = 0.1;
   planning_queue.push(single_request);
 
-  // single_request.start_joint_state.clear();
-  // single_request.screw_path.at(0).theta = 0.5 * M_PI;
-  // single_request.screw_path.at(0).screw_msg.axis.x = -1;
-  // planning_queue.push(single_request);
+  single_request.screw_path.at(0).screw_msg.is_pure_translation = false;
+  single_request.screw_path.at(0).theta = 0.5 * M_PI;
+  single_request.screw_path.at(0).screw_msg.axis.x = 0;
+  single_request.screw_path.at(0).screw_msg.axis.z = 1;
+  single_request.screw_path.at(0).screw_msg.origin.x = 0.4318;
+  single_request.screw_path.at(0).screw_msg.origin.y = -0.15;
+  single_request.screw_path.at(0).screw_msg.origin.z = 0.16;
+  single_request.start_joint_state = default_joint_state;
+  planning_queue.push(single_request);
 
+  single_request.start_joint_state.clear();
   // single_request.screw_path.at(0).theta = 0.25 * M_PI;
   // single_request.screw_path.at(0).screw_msg.axis.x = 0;
   // single_request.screw_path.at(0).screw_msg.axis.z = 1;

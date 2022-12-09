@@ -134,6 +134,15 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   if (error.norm() > 0.005) {
     return false;
   }
+
+  // Check for collisions
+  collision_detection::CollisionResult::ContactMap contacts;
+  const planning_scene::PlanningSceneConstPtr ps(*planning_scene);
+  ps->getCollidingPairs(contacts, *kinematic_state_);
+  if (contacts.size() > 0) {
+    return false;
+  }
+
   return true;
 }
 

@@ -99,8 +99,6 @@ bool ScrewValidSampler::sample(ob::State *state) {
   if (!found_ik) {
     return false;
   }
-  
-  std::cout << "Sampling: " << screw_state[0] << "\n";
 
   kinematic_state_->setJointGroupActivePositions(joint_model_group_.get(),
                                                  ik_solution);
@@ -188,8 +186,6 @@ void ScrewSampler::sample(ob::State *state,
   if (!found_ik) {
     return;
   }
-
-  std::cout << "Sampling: " << screw_state[0] << "\n";
 
   kinematic_state_->setJointGroupPositions(joint_model_group_.get(),
                                            ik_solution);
