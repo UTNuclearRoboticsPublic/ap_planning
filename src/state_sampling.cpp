@@ -76,7 +76,7 @@ bool ScrewValidSampler::sample(ob::State *state) {
   // Get the pose of this theta
   // TODO: multiple screw axis?
   Eigen::Isometry3d current_pose =
-      start_pose_ * screw_axis_.getTF(screw_state[0]);
+      screw_axis_.getTF(screw_state[0]) * start_pose_;
   geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
   // Set up IK callback
@@ -163,7 +163,7 @@ void ScrewSampler::sample(ob::State *state,
   // Get the pose of this theta
   // TODO: multiple screw axis?
   Eigen::Isometry3d current_pose =
-      start_pose_ * screw_axis_.getTF(screw_state[0]);
+      screw_axis_.getTF(screw_state[0]) * start_pose_;
   geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
   // Set up IK callback
