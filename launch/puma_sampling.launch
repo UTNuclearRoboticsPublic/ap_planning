@@ -22,7 +22,7 @@
   <node name="puma_rviz" pkg ="rviz" type ="rviz" args ="-d $(find ap_planning)/config/puma.rviz"/>
 
   <node name="puma_tests" pkg="ap_planning" type="puma_tests" respawn="false" output="screen" launch-prefix="$(arg launch_prefix)">
-    <rosparam command="load" file="$(find puma560_moveit_config)/config/kinematics.yaml"/>
+    <rosparam command="load" file="$(find ap_planning)/config/puma_kinematics.yaml"/>
     <param name="move_group_name" type="string" value="$(arg move_group_name)" />
     <param name="ik_solver_name" type="string" value="$(arg ik_solver_name)" />
     <param name="num_sampling" type="int" value="$(arg num_sampling)" />

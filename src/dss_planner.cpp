@@ -73,16 +73,18 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
   // Create start and goal states
   std::vector<std::vector<double>> start_configs, goal_configs;
   if (passed_start_config_) {
-    if (!findGoalStates(req, 10, start_configs, goal_configs)) {
+    if (!findGoalStates(req, 30, start_configs, goal_configs)) {
       cleanUp();
       return NO_IK_SOLUTION;
     }
   } else {
-    if (!findStartGoalStates(req, 5, 10, start_configs, goal_configs)) {
+    if (!findStartGoalStates(req, 20, 30, start_configs, goal_configs)) {
       cleanUp();
       return NO_IK_SOLUTION;
     }
   }
+
+  std::cout << start_configs.size() << "   " << goal_configs.size() << "\n";
 
   // Set the start states
   for (const auto& start_state : start_configs) {
