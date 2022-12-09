@@ -172,7 +172,7 @@ bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
   const Eigen::Isometry3d planning_to_start = tf2::transformToEigen(tf_msg);
   // TODO handle multi-screw
   goal_pose_ =
-      planning_to_start * screw_axis_.getTF(req.screw_path.at(0).theta);
+       screw_axis_.getTF(req.screw_path.at(0).theta)*planning_to_start; 
 
   // Add screw param (from starting pose screw)
   auto screw_param = std::make_shared<ap_planning::ScrewParam>("screw_param");
