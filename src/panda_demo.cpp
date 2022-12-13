@@ -332,15 +332,15 @@ int main(int argc, char **argv) {
     planning_queue.push(single_request);
   }
 
-  ap_planning::ScrewPlanner ap_planner("panda_arm");
+  ap_planning::DSSPlanner ap_planner("panda_arm");
   ap_planning::SequentialStepPlanner sequential_step_planner(nh);
   if (!sequential_step_planner.initialize()) {
     ROS_ERROR_STREAM("Init failed");
     return EXIT_FAILURE;
   }
 
-  std::stringstream ss_screw, ss_sps;
-  ss_screw << "Start of output\n";
+  std::stringstream ss_dssp, ss_sps;
+  ss_dssp << "Start of output\n";
   ss_sps << "Start of output\n";
   size_t sample = 0;
   ap_planning::APPlanningResponse last_plan;
@@ -381,7 +381,7 @@ int main(int argc, char **argv) {
       auto duration =
           std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
       if (success == ap_planning::SUCCESS) {
-        std::cout << "\n\n\nScrew planning: Success!!\n\n";
+        std::cout << "\n\n\nDSS planning: Success!!\n\n";
         std::cout << "Trajectory is: " << result.percentage_complete * 100
                   << "% complete, and has length: " << result.path_length
                   << "\n";
@@ -391,13 +391,13 @@ int main(int argc, char **argv) {
         }
         last_plan = result;
       } else {
-        std::cout << "\n\n\nScrew planning: Fail ("
-                  << ap_planning::toStr(success) << ")\n\n";
+        std::cout << "\n\n\nDSS planning: Fail (" << ap_planning::toStr(success)
+                  << ")\n\n";
       }
 
-      ss_screw << sample << ", Screw, " << ap_planning::toStr(success) << ", "
-               << result.percentage_complete * 100 << ", " << duration.count()
-               << ", " << result.path_length << ",\n";
+      ss_dssp << sample << ", DSS, " << ap_planning::toStr(success) << ", "
+              << result.percentage_complete * 100 << ", " << duration.count()
+              << ", " << result.path_length << ",\n";
     }
 
     // Now move to SPS planner
@@ -439,9 +439,9 @@ int main(int argc, char **argv) {
 
   show_trajectory(last_plan.joint_trajectory, visual_tools);
 
-  ss_screw << "End output\n";
+  ss_dssp << "End output\n";
   ss_sps << "End output\n";
-  std::cout << ss_screw.str();
+  std::cout << ss_dssp.str();
   std::cout << ss_sps.str();
 
   ros::shutdown();

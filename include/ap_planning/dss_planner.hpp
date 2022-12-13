@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////
-//      Title     : screw_planner.hpp
+//      Title     : dss_planner.hpp
 //      Project   : ap_planning
 //      Created   : 08/23/2022
 //      Author    : Adam Pettinger
@@ -48,13 +48,13 @@ namespace og = ompl::geometric;
 
 namespace ap_planning {
 /**
- * Plans a screw motion using OMPL's PRM
+ * Plans a motion following a screw path. Direct Screw Sampling Planner
  */
-class ScrewPlanner {
+class DSSPlanner {
  public:
-  ScrewPlanner(const std::string& move_group_name,
-               const std::string& robot_description_name = "robot_description");
-  ~ScrewPlanner();
+  DSSPlanner(const std::string& move_group_name,
+             const std::string& robot_description_name = "robot_description");
+  ~DSSPlanner();
 
   /** Attempts to plan a screw-based trajectory
    *
