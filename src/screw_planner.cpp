@@ -65,7 +65,7 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
   state_space_->as<ob::CompoundStateSpace>()->lock();
 
   // Set up... the SimpleSetup
-  if (!setSimpleSetup(state_space_)) {
+  if (!setSimpleSetup(state_space_, req)) {
     cleanUp();
     return INITIALIZATION_FAIL;
   }
@@ -231,7 +231,8 @@ affordance_primitives::TransformStamped ScrewPlanner::getStartTF(
   return tf_msg;
 }
 
-bool ScrewPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space) {
+bool ScrewPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space,
+                                  const APPlanningRequest& req) {
   // Create the SimpleSetup class
   ss_ = std::make_shared<og::SimpleSetup>(space);
 
@@ -244,8 +245,19 @@ bool ScrewPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space) {
       ap_planning::allocScrewValidSampler);
 
   // Set planner
-  auto planner = std::make_shared<og::PRM>(ss_->getSpaceInformation());
-  ss_->setPlanner(planner);
+  if (req.planner == PlannerType::PRMstar) {
+    auto planner = std::make_shared<og::PRMstar>(ss_->getSpaceInformation());
+    ss_->setPlanner(planner);
+  } else if (req.planner == PlannerType::RRT) {
+    auto planner = std::make_shared<og::RRT>(ss_->getSpaceInformation());
+    ss_->setPlanner(planner);
+  } else if (req.planner == PlannerType::RRTconnect) {
+    auto planner = std::make_shared<og::RRTConnect>(ss_->getSpaceInformation());
+    ss_->setPlanner(planner);
+  } else {
+    auto planner = std::make_shared<og::PRM>(ss_->getSpaceInformation());
+    ss_->setPlanner(planner);
+  }
 
   return true;
 }

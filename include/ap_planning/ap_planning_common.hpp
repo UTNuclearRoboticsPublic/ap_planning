@@ -67,6 +67,9 @@ inline std::string toStr(const Result result) {
   return "Unknown code";
 }
 
+// Enumeration for the underlying planner
+enum PlannerType { PRM, PRMstar, RRT, RRTconnect };
+
 /**
  * A struct for describing a single segment of a screw path
  */
@@ -85,6 +88,8 @@ struct ScrewSegment {
 struct APPlanningRequest {
   std::vector<ScrewSegment> screw_path;
   std::string ee_frame_name;
+
+  PlannerType planner{PRM};
   double planning_time;
 
   // Only set one of these

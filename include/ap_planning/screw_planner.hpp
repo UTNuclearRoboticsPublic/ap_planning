@@ -90,7 +90,8 @@ class ScrewPlanner {
       const APPlanningRequest& req);
   bool setSpaceParameters(const APPlanningRequest& req,
                           ompl::base::StateSpacePtr& space);
-  bool setSimpleSetup(const ompl::base::StateSpacePtr& space);
+  bool setSimpleSetup(const ompl::base::StateSpacePtr& space,
+                      const APPlanningRequest& req);
 
   /** Solves IK for the start and goal configurations
    *

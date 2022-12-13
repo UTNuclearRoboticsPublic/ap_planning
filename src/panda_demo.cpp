@@ -9,6 +9,7 @@
 #include <ompl/geometric/planners/rrt/RRT.h>
 #include <ompl/geometric/planners/rrt/RRTConnect.h>
 
+#include <algorithm>
 #include <iostream>
 #include <queue>
 #include <thread>
@@ -232,6 +233,28 @@ int main(int argc, char **argv) {
   nh.param<bool>(ros::this_node::getName() + "/add_collision_objects",
                  use_obstacles, true);
 
+  // Set planner type
+  std::string planner_name;
+  nh.param<std::string>(ros::this_node::getName() + "/planner", planner_name,
+                        "prm");
+  std::transform(planner_name.begin(), planner_name.end(), planner_name.begin(),
+                 ::tolower);
+
+  ap_planning::PlannerType planner_type;
+  if (planner_name == "prm") {
+    planner_type = ap_planning::PlannerType::PRM;
+  } else if (planner_name == "prmstar") {
+    planner_type = ap_planning::PlannerType::PRMstar;
+  } else if (planner_name == "rrt") {
+    planner_type = ap_planning::PlannerType::RRT;
+  } else if (planner_name == "rrtconnect") {
+    planner_type = ap_planning::PlannerType::RRTconnect;
+  } else {
+    ROS_WARN_STREAM("Unknown planner type: '" << planner_name
+                                              << "', using PRM");
+    planner_type = ap_planning::PlannerType::PRM;
+  }
+
   // Add collision objects
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
   auto collision_objects = get_collision_objects();
@@ -251,6 +274,7 @@ int main(int argc, char **argv) {
   single_request.screw_path.push_back(single_screw);
   single_request.ee_frame_name = "panda_link8";
   single_request.planning_time = 10;
+  single_request.planner = planner_type;
 
   // For now, all requests start at same point
   single_request.start_pose.pose.position.x = 0.5;
