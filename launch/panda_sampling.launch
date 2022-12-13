@@ -1,6 +1,6 @@
 <launch>
   <arg name="num_sampling" default="1" />
-  <arg name="num_naive" default="1" />
+  <arg name="num_sps" default="1" />
   <arg name="show_trajectories" default="true" />
   <arg name="add_collision_objects" default="true" />
   <arg name="planner" default="prm" />
@@ -27,7 +27,7 @@
     <param name="move_group_name" type="string" value="$(arg move_group_name)" />
     <param name="ik_solver_name" type="string" value="$(arg ik_solver_name)" />
     <param name="num_sampling" type="int" value="$(arg num_sampling)" />
-    <param name="num_naive" type="int" value="$(arg num_naive)" />
+    <param name="num_sps" type="int" value="$(arg num_sps)" />
     <param name="show_trajectories" type="bool" value="$(arg show_trajectories)" />
     <param name="add_collision_objects" type="bool" value="$(arg add_collision_objects)" />
     <param name="planner" type="string" value="$(arg planner)" />

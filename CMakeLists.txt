@@ -69,7 +69,7 @@ include_directories(SYSTEM
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
   src/ik_solver.cpp
-  src/naive_planner.cpp
+  src/sequential_step_planner.cpp
   src/screw_planner.cpp
   src/state_sampling.cpp
   src/state_utils.cpp

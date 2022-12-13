@@ -1,6 +1,6 @@
 
 ///////////////////////////////////////////////////////////////////////////////
-//      Title     : naive_planner.hpp
+//      Title     : sequential_step_planner.hpp
 //      Project   : ap_planning
 //      Created   : 07/28/2022
 //      Author    : Adam Pettinger
@@ -44,14 +44,14 @@ namespace ap_planning {
  * loading internally
  *
  */
-class NaivePlanner {
+class SequentialStepPlanner {
  public:
   /** Constructor
    *
    * @param nh ROS node handle
    */
-  NaivePlanner(const ros::NodeHandle& nh);
-  ~NaivePlanner(){};
+  SequentialStepPlanner(const ros::NodeHandle& nh);
+  ~SequentialStepPlanner(){};
 
   bool initialize();
 

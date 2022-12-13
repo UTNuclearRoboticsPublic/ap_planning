@@ -1,11 +1,12 @@
-#include <ap_planning/naive_planner.hpp>
+#include <ap_planning/sequential_step_planner.hpp>
 
 namespace ap_planning {
-NaivePlanner::NaivePlanner(const ros::NodeHandle& nh) : initialized_(false) {
+SequentialStepPlanner::SequentialStepPlanner(const ros::NodeHandle& nh)
+    : initialized_(false) {
   nh_ = nh;
 }
 
-bool NaivePlanner::initialize() {
+bool SequentialStepPlanner::initialize() {
   // Read the solver name from the parameter server
   std::string ik_solver_name;
   if (!nh_.getParam(ros::this_node::getName() + "/ik_solver_name",
@@ -29,7 +30,7 @@ bool NaivePlanner::initialize() {
   return initialized_;
 }
 
-ap_planning::Result NaivePlanner::plan(
+ap_planning::Result SequentialStepPlanner::plan(
     const affordance_primitive_msgs::AffordanceTrajectory& affordance_traj,
     const std::vector<double>& start_state, const std::string& ee_name,
     APPlanningResponse& res) {
@@ -44,8 +45,8 @@ ap_planning::Result NaivePlanner::plan(
   return ik_solver_->plan(affordance_traj, start_state, ee_name, res);
 }
 
-ap_planning::Result NaivePlanner::plan(const APPlanningRequest& req,
-                                       APPlanningResponse& res) {
+ap_planning::Result SequentialStepPlanner::plan(const APPlanningRequest& req,
+                                                APPlanningResponse& res) {
   // If we haven't already initialized, do so
   if (!initialized_ && !initialize()) {
     return ap_planning::INITIALIZATION_FAIL;
