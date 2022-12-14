@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////
-//      Title     : screw_planner.hpp
+//      Title     : dss_planner.hpp
 //      Project   : ap_planning
 //      Created   : 08/23/2022
 //      Author    : Adam Pettinger
@@ -34,6 +34,9 @@
 
 #include <ompl/geometric/SimpleSetup.h>
 #include <ompl/geometric/planners/prm/PRM.h>
+#include <ompl/geometric/planners/prm/PRMstar.h>
+#include <ompl/geometric/planners/rrt/RRT.h>
+#include <ompl/geometric/planners/rrt/RRTConnect.h>
 #include <ap_planning/ap_planning_common.hpp>
 #include <ap_planning/state_sampling.hpp>
 #include <ap_planning/state_utils.hpp>
@@ -45,12 +48,13 @@ namespace og = ompl::geometric;
 
 namespace ap_planning {
 /**
- * Plans a screw motion using OMPL's PRM
+ * Plans a motion following a screw path. Direct Screw Sampling Planner
  */
-class ScrewPlanner {
+class DSSPlanner {
  public:
-  ScrewPlanner(const std::string& move_group_name,
-               const std::string& robot_description_name = "robot_description");
+  DSSPlanner(const std::string& move_group_name,
+             const std::string& robot_description_name = "robot_description");
+  ~DSSPlanner();
 
   /** Attempts to plan a screw-based trajectory
    *
@@ -72,14 +76,22 @@ class ScrewPlanner {
   moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   std::shared_ptr<moveit::core::JointModelGroup> joint_model_group_;
+  kinematics::KinematicsBasePtr ik_solver_;
+  planning_scene_monitor::PlanningSceneMonitorPtr psm_;
+  std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
+      planning_scene_;
   bool passed_start_config_;
+  std::string robot_description_name_;
+
+  void cleanUp();
 
   bool setupStateSpace(const APPlanningRequest& req);
   affordance_primitives::TransformStamped getStartTF(
       const APPlanningRequest& req);
   bool setSpaceParameters(const APPlanningRequest& req,
                           ompl::base::StateSpacePtr& space);
-  bool setSimpleSetup(const ompl::base::StateSpacePtr& space);
+  bool setSimpleSetup(const ompl::base::StateSpacePtr& space,
+                      const APPlanningRequest& req);
 
   /** Solves IK for the start and goal configurations
    *

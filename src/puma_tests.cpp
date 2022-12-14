@@ -14,6 +14,7 @@
 #include <thread>
 #include <utility>
 
+#include <moveit/planning_scene_interface/planning_scene_interface.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <moveit/robot_state/robot_state.h>
@@ -25,10 +26,7 @@
 #include <affordance_primitives/screw_model/affordance_utils.hpp>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
 #include <affordance_primitives/screw_planning/screw_planning.hpp>
-#include <ap_planning/state_sampling.hpp>
-#include <ap_planning/state_utils.hpp>
-
-#include <ap_planning/screw_planner.hpp>
+#include <ap_planning/ap_planning.hpp>
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
@@ -51,7 +49,7 @@ void show_screw(const affordance_primitives::ScrewStamped &screw_msg,
 void show_trajectory(const trajectory_msgs::JointTrajectory &traj,
                      moveit_visual_tools::MoveItVisualTools &visual_tools) {
   moveit_msgs::DisplayTrajectory joint_traj;
-  joint_traj.model_id = "Puma560";
+  joint_traj.model_id = "puma_arm_and_base";
   joint_traj.trajectory.push_back(moveit_msgs::RobotTrajectory());
   joint_traj.trajectory.at(0).joint_trajectory = traj;
 
@@ -61,7 +59,7 @@ void show_trajectory(const trajectory_msgs::JointTrajectory &traj,
   start_msg.joint_state.position = first_waypoint.positions;
   joint_traj.trajectory_start = start_msg;
 
-  joint_traj.trajectory.at(0).joint_trajectory.header.frame_id = "map";
+  joint_traj.trajectory.at(0).joint_trajectory.header.frame_id = "world";
 
   int time = 0;
 
@@ -73,15 +71,175 @@ void show_trajectory(const trajectory_msgs::JointTrajectory &traj,
   visual_tools.publishTrajectoryPath(joint_traj);
 }
 
+std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
+  // Set up stuff same across all test cases
+  std::queue<moveit_msgs::CollisionObject> output;
+  moveit_msgs::CollisionObject collision_object;
+  collision_object.header.frame_id = "world";
+  collision_object.operation = collision_object.ADD;
+
+  geometry_msgs::Pose box_pose;
+  box_pose.orientation.w = 1.0;
+  shape_msgs::SolidPrimitive primitive;
+  primitive.type = primitive.BOX;
+  primitive.dimensions.resize(3);
+
+  // Screw one
+  collision_object.id = "screw1_box1";
+  primitive.dimensions[primitive.BOX_X] = 0.1;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.4;
+  box_pose.position.x = 0.25;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.25;
+
+  // Add screw one object
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  // Repeat
+  collision_object.id = "screw2_box1";
+  primitive.dimensions[primitive.BOX_X] = 0.5;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 0.6;
+  box_pose.position.x = -0.1;
+  box_pose.position.y = -0.25;
+  box_pose.position.z = 0.25;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  collision_object.id = "screw3_box1";
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.1;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.75;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  collision_object.id = "screw4_box1";
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 1.5;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = -0.2;
+  box_pose.position.z = 0.25;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 1.5;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = 0.2;
+  box_pose.position.z = 0.25;
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  collision_object.id = "screw5_box1";
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.1;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.65;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  collision_object.id = "screw6_box1";
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.1;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.65;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  collision_object.id = "screw7_box1";
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 1.5;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = -0.2;
+  box_pose.position.z = 0.25;
+
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 1.5;
+  box_pose.position.x = 0.5;
+  box_pose.position.y = 0.2;
+  box_pose.position.z = 0.25;
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  return output;
+}
+
 int main(int argc, char **argv) {
   ros::init(argc, argv, "ap_planning");
   ros::NodeHandle nh;
   ros::AsyncSpinner spinner(2);
   spinner.start();
 
+  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
+  const moveit::core::RobotModelPtr &kinematic_model =
+      robot_model_loader.getModel();
+
+  moveit::core::RobotStatePtr kinematic_state(
+      new moveit::core::RobotState(kinematic_model));
+  std::vector<double> default_joint_state{0, -0.785, 0,    -2.356,
+                                          0, 1.571,  0.785};
+  kinematic_state->setJointGroupPositions("puma_arm_and_base",
+                                          default_joint_state);
+
+  int num_sample, num_sps;
+  nh.param<int>(ros::this_node::getName() + "/num_sampling", num_sample, 2);
+  nh.param<int>(ros::this_node::getName() + "/num_sps", num_sps, 2);
+
+  bool show_trajectories;
+  nh.param<bool>(ros::this_node::getName() + "/show_trajectories",
+                 show_trajectories, true);
+
+  bool use_obstacles;
+  nh.param<bool>(ros::this_node::getName() + "/add_collision_objects",
+                 use_obstacles, true);
+
+  // Add collision objects
+  moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
+  auto collision_objects = get_collision_objects();
+
   ros::Duration(2.0).sleep();
 
-  moveit_visual_tools::MoveItVisualTools visual_tools("map");
+  moveit_visual_tools::MoveItVisualTools visual_tools("world");
   visual_tools.deleteAllMarkers();
   visual_tools.loadRemoteControl();
   visual_tools.setRobotStateTopic("/display_robot_state");
@@ -89,8 +247,11 @@ int main(int argc, char **argv) {
 
   std::queue<ap_planning::APPlanningRequest> planning_queue;
   ap_planning::APPlanningRequest single_request;
-  single_request.screw_msg.header.frame_id = "map";
+  ap_planning::ScrewSegment single_screw;
+  single_screw.screw_msg.header.frame_id = "world";
+  single_request.screw_path.push_back(single_screw);
   single_request.ee_frame_name = "link7";
+  single_request.planning_time = 10;
 
   // For now, all requests start at same point
   single_request.start_pose.pose.position.x = 0.5;
@@ -99,73 +260,168 @@ int main(int argc, char **argv) {
   single_request.start_pose.pose.orientation.w = 0;
 
   // Add some test cases
-  single_request.theta = 0.25 * M_PI;
-  single_request.screw_msg.origin = single_request.start_pose.pose.position;
-  single_request.screw_msg.axis.x = 1;
+  single_request.screw_path.at(0).theta = 0.25 * M_PI;
+  single_request.screw_path.at(0).screw_msg.origin =
+      single_request.start_pose.pose.position;
+  single_request.screw_path.at(0).screw_msg.axis.x = 1;
   planning_queue.push(single_request);
 
   // This time, send a joint configuration
-  single_request.start_joint_state =
-      std::vector<double>{0, -0.785, 0, -2.356, 0, 1.571, 0.785};
+  single_request.start_joint_state = default_joint_state;
   planning_queue.push(single_request);
 
   single_request.start_joint_state.clear();
-  single_request.theta = 0.5 * M_PI;
-  single_request.screw_msg.axis.x = -1;
+  single_request.screw_path.at(0).theta = 0.5 * M_PI;
+  single_request.screw_path.at(0).screw_msg.axis.x = -1;
   planning_queue.push(single_request);
 
-  single_request.theta = 0.25 * M_PI;
-  single_request.screw_msg.axis.x = 0;
-  single_request.screw_msg.axis.z = 1;
+  single_request.screw_path.at(0).theta = 0.25 * M_PI;
+  single_request.screw_path.at(0).screw_msg.axis.x = 0;
+  single_request.screw_path.at(0).screw_msg.axis.z = 1;
   planning_queue.push(single_request);
 
-  single_request.screw_msg.origin.x -= 0.1;
-  single_request.screw_msg.pitch = 0.1;
+  single_request.screw_path.at(0).screw_msg.origin.x -= 0.1;
+  single_request.screw_path.at(0).screw_msg.pitch = 0.1;
   planning_queue.push(single_request);
 
-  single_request.screw_msg.origin = geometry_msgs::Point();
+  single_request.screw_path.at(0).screw_msg.origin = geometry_msgs::Point();
+  single_request.screw_path.at(0).screw_msg.origin.z = -0.25;
   planning_queue.push(single_request);
 
-  single_request.screw_msg.origin = single_request.start_pose.pose.position;
-  single_request.screw_msg.axis.x = -1;
-  single_request.screw_msg.axis.z = 1;
-  single_request.screw_msg.is_pure_translation = true;
+  single_request.screw_path.at(0).theta = 0.75;  // meters
+  single_request.screw_path.at(0).screw_msg.origin =
+      single_request.start_pose.pose.position;
+  single_request.screw_path.at(0).screw_msg.axis.x = -1;
+  single_request.screw_path.at(0).screw_msg.axis.z = 1;
+  single_request.screw_path.at(0).screw_msg.is_pure_translation = true;
   planning_queue.push(single_request);
 
-  ap_planning::ScrewPlanner ap_planner("puma_arm_and_base");
+  // This is the moveit ompl_constrained_planning tutorial line
+  if (!use_obstacles) {
+    single_request.start_joint_state = default_joint_state;
+    single_request.screw_path.at(0).theta = 0.3;
+    single_request.screw_path.at(0).screw_msg.origin.x = 0.307;
+    single_request.screw_path.at(0).screw_msg.origin.y = 0;
+    single_request.screw_path.at(0).screw_msg.origin.z = 0.59;
+    single_request.screw_path.at(0).screw_msg.axis.x = 0;
+    single_request.screw_path.at(0).screw_msg.axis.y = 1;
+    single_request.screw_path.at(0).screw_msg.axis.z = -1;
+    planning_queue.push(single_request);
+  }
+
+  ap_planning::DSSPlanner ap_planner("puma_arm_and_base");
+  ap_planning::SequentialStepPlanner sequential_step_planner(nh);
+  if (!sequential_step_planner.initialize()) {
+    ROS_ERROR_STREAM("Init failed");
+    return EXIT_FAILURE;
+  }
+
+  std::stringstream ss_dssp, ss_sps;
+  ss_dssp << "Start of output\n";
+  ss_sps << "Start of output\n";
+  size_t sample = 0;
+  ap_planning::APPlanningResponse last_plan;
+  bool collision_obj_exists = false;
 
   // Plan each screw request
   while (planning_queue.size() > 0 && ros::ok()) {
+    sample++;
     auto req = planning_queue.front();
     planning_queue.pop();
-    visual_tools.prompt(
-        "Press 'next' in the RvizVisualToolsGui window to start the demo");
 
-    show_screw(req.screw_msg, visual_tools);
-
-    ap_planning::APPlanningResponse result;
-    if (ap_planner.plan(req, result) == ap_planning::SUCCESS) {
-      std::cout << "\n\n\nSuccess!!\n\n";
-    } else {
-      std::cout << "\n\n\nFail!!\n\n";
-      continue;
+    if (show_trajectories) {
+      visual_tools.prompt(
+          "Press 'next' in the RvizVisualToolsGui window to plan next screw");
     }
 
-    std::cout << "Trajectory is: " << result.percentage_complete * 100
-              << "% complete, and has length: " << result.path_length << "\n";
+    if (use_obstacles && !collision_objects.empty()) {
+      if (collision_obj_exists) {
+        std::vector<std::string> remove_objs;
+        remove_objs.push_back(collision_objects.front().id);
+        planning_scene_interface.removeCollisionObjects(remove_objs);
+        collision_objects.pop();
+      }
+      std::vector<moveit_msgs::CollisionObject> collision_obj_vec;
+      collision_obj_vec.push_back(collision_objects.front());
+      planning_scene_interface.addCollisionObjects(collision_obj_vec);
+      collision_obj_exists = true;
+    }
 
-    show_trajectory(result.joint_trajectory, visual_tools);
+    show_screw(req.screw_path.at(0).screw_msg, visual_tools);
 
-    // }
-    // ROS_INFO_STREAM("Num success: "
-    //                 << success_count
-    //                 << " (with num post reject = " << num_post_rejections <<
-    //                 ")"
-    //                 << "\nWith #start = " << start_configs.size()
-    //                 << "\n#end = " << goal_configs.size()
-    //                 << "\nAvg time = " << total_success_time / success_count
-    //                 << "\nMax found time = " << max_found_time);
+    for (size_t i = 0; i < num_sample; ++i) {
+      std::cout << "Starting i = " << i << "\n";
+      ap_planning::APPlanningResponse result;
+      auto start = std::chrono::high_resolution_clock::now();
+      ap_planning::Result success = ap_planner.plan(req, result);
+      auto stop = std::chrono::high_resolution_clock::now();
+      auto duration =
+          std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+      if (success == ap_planning::SUCCESS) {
+        std::cout << "\n\n\nDSS planning: Success!!\n\n";
+        std::cout << "Trajectory is: " << result.percentage_complete * 100
+                  << "% complete, and has length: " << result.path_length
+                  << "\n";
+
+        if (show_trajectories) {
+          show_trajectory(result.joint_trajectory, visual_tools);
+        }
+        last_plan = result;
+      } else {
+        std::cout << "\n\n\nDSS planning: Fail (" << ap_planning::toStr(success)
+                  << ")\n\n";
+      }
+
+      ss_dssp << sample << ", DSS, " << ap_planning::toStr(success) << ", "
+              << result.percentage_complete * 100 << ", " << duration.count()
+              << ", " << result.path_length << ",\n";
+    }
+
+    // Now move to SPS planner
+    if (show_trajectories) {
+      visual_tools.prompt(
+          "Press 'next' in the RvizVisualToolsGui window to plan again using "
+          "SPS planner");
+    }
+
+    // Try planning
+    for (size_t i = 0; i < num_sps; ++i) {
+      ap_planning::APPlanningResponse sps_output;
+      auto start = std::chrono::high_resolution_clock::now();
+      auto sps_res = sequential_step_planner.plan(req, sps_output);
+      auto stop = std::chrono::high_resolution_clock::now();
+      auto duration =
+          std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+      if (sps_res == ap_planning::SUCCESS) {
+        std::cout << "\n\n\nSPS planning: Success!!\n\n";
+        std::cout << "Trajectory is: " << sps_output.percentage_complete * 100
+                  << "% complete, and has length: " << sps_output.path_length
+                  << "\n";
+        if (show_trajectories) {
+          show_trajectory(sps_output.joint_trajectory, visual_tools);
+        }
+        last_plan = sps_output;
+      } else {
+        std::cout << "\n\n\nSPS planning: Fail (" << ap_planning::toStr(sps_res)
+                  << ")\n\n";
+        std::cout << "Trajectory is: " << sps_output.percentage_complete * 100
+                  << "% complete, and has length: " << sps_output.path_length
+                  << "\n";
+      }
+      ss_sps << sample << ", SPS, " << ap_planning::toStr(sps_res) << ", "
+             << sps_output.percentage_complete * 100 << ", " << duration.count()
+             << ",\n";
+    }
   }
+
+  if (last_plan.percentage_complete > 0.1) {
+    show_trajectory(last_plan.joint_trajectory, visual_tools);
+  }
+
+  ss_dssp << "End output\n";
+  ss_sps << "End output\n";
+  std::cout << ss_dssp.str();
+  std::cout << ss_sps.str();
 
   ros::shutdown();
   return 0;

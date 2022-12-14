@@ -32,6 +32,7 @@
 
 #pragma once
 
+#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <ros/ros.h>
 #include <ap_planning/ik_solver_base.hpp>
 
@@ -49,7 +50,7 @@ const double CONDITION_NUM_LIMIT = 100;
 class IKSolver : public IKSolverBase {
  public:
   IKSolver(){};
-  ~IKSolver(){};
+  ~IKSolver() { cleanUp(); };
 
   /** Initializes the solver by looking up ROS parameters for:
    *
@@ -126,10 +127,17 @@ class IKSolver : public IKSolverBase {
 
   moveit::core::RobotStatePtr kinematic_state_;
 
+  planning_scene_monitor::PlanningSceneMonitorPtr psm_;
+  std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
+      planning_scene_;
+
   // Planning parameters
   double joint_tolerance_;
   double waypoint_dist_, waypoint_ang_;
   double condition_num_limit_;
+
+  void setUp(APPlanningResponse& res);
+  void cleanUp();
 
   size_t calculateNumWaypoints(
       const affordance_primitive_msgs::ScrewStamped& screw_msg,

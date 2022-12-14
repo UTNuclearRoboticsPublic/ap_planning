@@ -69,8 +69,8 @@ include_directories(SYSTEM
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
   src/ik_solver.cpp
-  src/naive_planner.cpp
-  src/screw_planner.cpp
+  src/sequential_step_planner.cpp
+  src/dss_planner.cpp
   src/state_sampling.cpp
   src/state_utils.cpp
 )
@@ -83,12 +83,15 @@ target_link_libraries(panda_demo ${PROJECT_NAME})
 add_executable(puma_tests src/puma_tests.cpp)
 target_link_libraries(puma_tests ${PROJECT_NAME})
 
+add_executable(multi_screw_demo src/multi_screw_demo.cpp)
+target_link_libraries(multi_screw_demo ${PROJECT_NAME})
+
 #############
 ## Install ##
 #############
 
 install(
-  TARGETS ${PROJECT_NAME} panda_demo puma_tests
+  TARGETS ${PROJECT_NAME} multi_screw_demo panda_demo puma_tests
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
