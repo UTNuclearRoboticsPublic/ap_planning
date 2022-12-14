@@ -34,5 +34,5 @@
 #pragma once
 
 #include <ap_planning/ap_planning_common.hpp>
-#include <ap_planning/naive_planner.hpp>
-#include <ap_planning/screw_planner.hpp>
+#include <ap_planning/dss_planner.hpp>
+#include <ap_planning/sequential_step_planner.hpp>

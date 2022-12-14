@@ -1,9 +1,9 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
-#include <ap_planning/screw_planner.hpp>
+#include <ap_planning/dss_planner.hpp>
 
 namespace ap_planning {
-ScrewPlanner::ScrewPlanner(const std::string& move_group_name,
-                           const std::string& robot_description_name) {
+DSSPlanner::DSSPlanner(const std::string& move_group_name,
+                       const std::string& robot_description_name) {
   // Load the robot model
   robot_description_name_ = robot_description_name;
   robot_model_loader::RobotModelLoader robot_model_loader(
@@ -24,10 +24,10 @@ ScrewPlanner::ScrewPlanner(const std::string& move_group_name,
   ScrewValidityChecker::kinematic_model = kinematic_model_;
   ScrewValidSampler::kinematic_model = kinematic_model_;
 }
-ScrewPlanner::~ScrewPlanner() { cleanUp(); }
+DSSPlanner::~DSSPlanner() { cleanUp(); }
 
-ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
-                                       APPlanningResponse& res) {
+ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
+                                     APPlanningResponse& res) {
   // Set response to failing case
   res.joint_trajectory.joint_names.clear();
   res.joint_trajectory.points.clear();
@@ -113,13 +113,13 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
   return result;
 }
 
-void ScrewPlanner::cleanUp() {
+void DSSPlanner::cleanUp() {
   planning_scene_.reset();
   ScrewSampler::planning_scene.reset();
   ScrewValidSampler::planning_scene.reset();
 }
 
-bool ScrewPlanner::setupStateSpace(const APPlanningRequest& req) {
+bool DSSPlanner::setupStateSpace(const APPlanningRequest& req) {
   state_space_.reset();
 
   // construct the state space we are planning in
@@ -159,8 +159,8 @@ bool ScrewPlanner::setupStateSpace(const APPlanningRequest& req) {
   return true;
 }
 
-bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
-                                      ompl::base::StateSpacePtr& space) {
+bool DSSPlanner::setSpaceParameters(const APPlanningRequest& req,
+                                    ompl::base::StateSpacePtr& space) {
   // We need to transform the screw to be in the starting frame
   geometry_msgs::TransformStamped tf_msg = getStartTF(req);
 
@@ -200,7 +200,7 @@ bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
   return true;
 }
 
-affordance_primitives::TransformStamped ScrewPlanner::getStartTF(
+affordance_primitives::TransformStamped DSSPlanner::getStartTF(
     const APPlanningRequest& req) {
   geometry_msgs::TransformStamped tf_msg;
 
@@ -231,8 +231,8 @@ affordance_primitives::TransformStamped ScrewPlanner::getStartTF(
   return tf_msg;
 }
 
-bool ScrewPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space,
-                                  const APPlanningRequest& req) {
+bool DSSPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space,
+                                const APPlanningRequest& req) {
   // Create the SimpleSetup class
   ss_ = std::make_shared<og::SimpleSetup>(space);
 
@@ -262,7 +262,7 @@ bool ScrewPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space,
   return true;
 }
 
-bool ScrewPlanner::findStartGoalStates(
+bool DSSPlanner::findStartGoalStates(
     const APPlanningRequest& req, const size_t num_start, const size_t num_goal,
     std::vector<std::vector<double>>& start_configs,
     std::vector<std::vector<double>>& goal_configs) {
@@ -299,7 +299,7 @@ bool ScrewPlanner::findStartGoalStates(
   return start_configs.size() > 0 && goal_configs.size() > 0;
 }
 
-bool ScrewPlanner::findGoalStates(
+bool DSSPlanner::findGoalStates(
     const APPlanningRequest& req, const size_t num_goal,
     std::vector<std::vector<double>>& start_configs,
     std::vector<std::vector<double>>& goal_configs) {
@@ -330,7 +330,7 @@ bool ScrewPlanner::findGoalStates(
   return goal_configs.size() > 0;
 }
 
-void ScrewPlanner::increaseStateList(
+void DSSPlanner::increaseStateList(
     const affordance_primitives::Pose& pose,
     std::vector<std::vector<double>>& state_list) {
   // Set up IK callback
@@ -358,9 +358,9 @@ void ScrewPlanner::increaseStateList(
   }
 }
 
-void ScrewPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
-                                    const APPlanningRequest& req,
-                                    APPlanningResponse& res) {
+void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
+                                  const APPlanningRequest& req,
+                                  APPlanningResponse& res) {
   // We can stop if the trajectory doesn't have points
   if (solution.getStateCount() < 2) {
     return;

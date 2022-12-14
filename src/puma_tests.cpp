@@ -221,9 +221,9 @@ int main(int argc, char **argv) {
   kinematic_state->setJointGroupPositions("puma_arm_and_base",
                                           default_joint_state);
 
-  int num_sample, num_naive;
+  int num_sample, num_sps;
   nh.param<int>(ros::this_node::getName() + "/num_sampling", num_sample, 2);
-  nh.param<int>(ros::this_node::getName() + "/num_naive", num_naive, 2);
+  nh.param<int>(ros::this_node::getName() + "/num_sps", num_sps, 2);
 
   bool show_trajectories;
   nh.param<bool>(ros::this_node::getName() + "/show_trajectories",
@@ -309,16 +309,16 @@ int main(int argc, char **argv) {
     planning_queue.push(single_request);
   }
 
-  ap_planning::ScrewPlanner ap_planner("puma_arm_and_base");
-  ap_planning::NaivePlanner naive_planner(nh);
-  if (!naive_planner.initialize()) {
+  ap_planning::DSSPlanner ap_planner("puma_arm_and_base");
+  ap_planning::SequentialStepPlanner sequential_step_planner(nh);
+  if (!sequential_step_planner.initialize()) {
     ROS_ERROR_STREAM("Init failed");
     return EXIT_FAILURE;
   }
 
-  std::stringstream ss_screw, ss_naive;
-  ss_screw << "Start of output\n";
-  ss_naive << "Start of output\n";
+  std::stringstream ss_dssp, ss_sps;
+  ss_dssp << "Start of output\n";
+  ss_sps << "Start of output\n";
   size_t sample = 0;
   ap_planning::APPlanningResponse last_plan;
   bool collision_obj_exists = false;
@@ -358,7 +358,7 @@ int main(int argc, char **argv) {
       auto duration =
           std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
       if (success == ap_planning::SUCCESS) {
-        std::cout << "\n\n\nScrew planning: Success!!\n\n";
+        std::cout << "\n\n\nDSS planning: Success!!\n\n";
         std::cout << "Trajectory is: " << result.percentage_complete * 100
                   << "% complete, and has length: " << result.path_length
                   << "\n";
@@ -368,49 +368,49 @@ int main(int argc, char **argv) {
         }
         last_plan = result;
       } else {
-        std::cout << "\n\n\nScrew planning: Fail ("
-                  << ap_planning::toStr(success) << ")\n\n";
+        std::cout << "\n\n\nDSS planning: Fail (" << ap_planning::toStr(success)
+                  << ")\n\n";
       }
 
-      ss_screw << sample << ", Screw, " << ap_planning::toStr(success) << ", "
-               << result.percentage_complete * 100 << ", " << duration.count()
-               << ", " << result.path_length << ",\n";
+      ss_dssp << sample << ", DSS, " << ap_planning::toStr(success) << ", "
+              << result.percentage_complete * 100 << ", " << duration.count()
+              << ", " << result.path_length << ",\n";
     }
 
-    // Now move to naive planner
+    // Now move to SPS planner
     if (show_trajectories) {
       visual_tools.prompt(
           "Press 'next' in the RvizVisualToolsGui window to plan again using "
-          "naive planner");
+          "SPS planner");
     }
 
     // Try planning
-    for (size_t i = 0; i < num_naive; ++i) {
-      ap_planning::APPlanningResponse naive_output;
+    for (size_t i = 0; i < num_sps; ++i) {
+      ap_planning::APPlanningResponse sps_output;
       auto start = std::chrono::high_resolution_clock::now();
-      auto naive_res = naive_planner.plan(req, naive_output);
+      auto sps_res = sequential_step_planner.plan(req, sps_output);
       auto stop = std::chrono::high_resolution_clock::now();
       auto duration =
           std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-      if (naive_res == ap_planning::SUCCESS) {
-        std::cout << "\n\n\nNaive planning: Success!!\n\n";
-        std::cout << "Trajectory is: " << naive_output.percentage_complete * 100
-                  << "% complete, and has length: " << naive_output.path_length
+      if (sps_res == ap_planning::SUCCESS) {
+        std::cout << "\n\n\nSPS planning: Success!!\n\n";
+        std::cout << "Trajectory is: " << sps_output.percentage_complete * 100
+                  << "% complete, and has length: " << sps_output.path_length
                   << "\n";
         if (show_trajectories) {
-          show_trajectory(naive_output.joint_trajectory, visual_tools);
+          show_trajectory(sps_output.joint_trajectory, visual_tools);
         }
-        last_plan = naive_output;
+        last_plan = sps_output;
       } else {
-        std::cout << "\n\n\nNaive planning: Fail ("
-                  << ap_planning::toStr(naive_res) << ")\n\n";
-        std::cout << "Trajectory is: " << naive_output.percentage_complete * 100
-                  << "% complete, and has length: " << naive_output.path_length
+        std::cout << "\n\n\nSPS planning: Fail (" << ap_planning::toStr(sps_res)
+                  << ")\n\n";
+        std::cout << "Trajectory is: " << sps_output.percentage_complete * 100
+                  << "% complete, and has length: " << sps_output.path_length
                   << "\n";
       }
-      ss_naive << sample << ", Naive, " << ap_planning::toStr(naive_res) << ", "
-               << naive_output.percentage_complete * 100 << ", "
-               << duration.count() << ",\n";
+      ss_sps << sample << ", SPS, " << ap_planning::toStr(sps_res) << ", "
+             << sps_output.percentage_complete * 100 << ", " << duration.count()
+             << ",\n";
     }
   }
 
@@ -418,10 +418,10 @@ int main(int argc, char **argv) {
     show_trajectory(last_plan.joint_trajectory, visual_tools);
   }
 
-  ss_screw << "End output\n";
-  ss_naive << "End output\n";
-  std::cout << ss_screw.str();
-  std::cout << ss_naive.str();
+  ss_dssp << "End output\n";
+  ss_sps << "End output\n";
+  std::cout << ss_dssp.str();
+  std::cout << ss_sps.str();
 
   ros::shutdown();
   return 0;
