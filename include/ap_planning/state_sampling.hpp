@@ -33,6 +33,7 @@
 #pragma once
 
 #include <affordance_primitive_msgs/ScrewStamped.h>
+#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_state/robot_state.h>
 #include <ompl/base/SpaceInformation.h>
@@ -43,6 +44,20 @@
 namespace ob = ompl::base;
 
 namespace ap_planning {
+
+/** Contains all the functionality for using collision checking during Ik
+ *
+ * @param jmg The joint model group
+ * @param robot_state The robot state object
+ * @param psm The planning scene monitor to check against
+ * @param joints The IK solution to check
+ * @param error_code The error code for this solution
+ */
+bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
+                         const moveit::core::RobotStatePtr robot_state,
+                         const planning_scene_monitor::LockedPlanningSceneRO ps,
+                         const std::vector<double> &joints,
+                         moveit_msgs::MoveItErrorCodes &error_code);
 
 ob::ValidStateSamplerPtr allocScrewValidSampler(const ob::SpaceInformation *si);
 
@@ -63,6 +78,11 @@ class ScrewValidSampler : public ob::ValidStateSampler {
   // Holds the kinematic model
   // NOTE: You must set this before creating instances of this class!
   inline static moveit::core::RobotModelPtr kinematic_model;
+
+  // Holds the planning scene, for collision checking
+  // NOTE: You must set this before creating instances of this class!
+  inline static std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
+      planning_scene;
 
  protected:
   ompl::RNG rng_;
@@ -94,6 +114,11 @@ class ScrewSampler : public ob::StateSampler {
   // Holds the kinematic model
   // NOTE: You must set this before creating instances of this class!
   inline static moveit::core::RobotModelPtr kinematic_model;
+
+  // Holds the planning scene, for collision checking
+  // NOTE: You must set this before creating instances of this class!
+  inline static std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
+      planning_scene;
 
  protected:
   ompl::RNG rng_;

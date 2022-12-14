@@ -130,7 +130,7 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
     return false;
   }
 
-  if (error.norm() > 0.001) {
+  if (error.norm() > 0.005) {
     return false;
   }
   return true;

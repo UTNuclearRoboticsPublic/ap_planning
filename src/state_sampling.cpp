@@ -3,11 +3,33 @@
 
 namespace ap_planning {
 
+bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
+                         const moveit::core::RobotStatePtr robot_state,
+                         const planning_scene_monitor::LockedPlanningSceneRO ps,
+                         const std::vector<double> &joints,
+                         moveit_msgs::MoveItErrorCodes &error_code) {
+  // Copy the IK solution to the robot state
+  auto state_cpy = robot_state;
+  state_cpy->setJointGroupPositions(jmg.get(), joints);
+
+  // Check for collisions
+  collision_detection::CollisionResult::ContactMap contacts;
+  ps->getCollidingPairs(contacts, *state_cpy);
+
+  // Set the error code
+  if (contacts.size() == 0) {
+    error_code.val = moveit_msgs::MoveItErrorCodes::SUCCESS;
+  } else {
+    error_code.val = moveit_msgs::MoveItErrorCodes::NO_IK_SOLUTION;
+  }
+  return true;
+}
+
 ScrewValidSampler::ScrewValidSampler(const ob::SpaceInformation *si)
     : ValidStateSampler(si), screw_bounds_(1) {
   name_ = "screw_valid_sampler";
 
-  // Get robot description and move group parameters
+  // Get move group parameters
   std::string mg_string;
   si->getStateSpace()->params().getParam("move_group", mg_string);
 
@@ -54,22 +76,33 @@ bool ScrewValidSampler::sample(ob::State *state) {
   // Get the pose of this theta
   // TODO: multiple screw axis?
   Eigen::Isometry3d current_pose =
-      start_pose_ * screw_axis_.getTF(screw_state[0]);
+      screw_axis_.getTF(screw_state[0]) * start_pose_;
   geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
+
+  // Set up IK callback
+  kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
+      [this](const geometry_msgs::Pose &pose, const std::vector<double> &joints,
+             moveit_msgs::MoveItErrorCodes &error_code) {
+        ikCallbackFnAdapter(joint_model_group_, kinematic_state_,
+                            *planning_scene, joints, error_code);
+      };
 
   // Calculate IK for the pose
   std::vector<double> ik_solution, seed_state;
-  kinematic_state_->setToRandomPositions();
   kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
                                             seed_state);
   moveit_msgs::MoveItErrorCodes err;
   kinematics::KinematicsQueryOptions opts;
   // opts.return_approximate_solution = true;
-  bool found_ik = ik_solver_->searchPositionIK(pose_msg, seed_state, 0.05,
-                                               ik_solution, err, opts);
+  bool found_ik = ik_solver_->searchPositionIK(
+      pose_msg, seed_state, 0.05, ik_solution, ik_callback_fn, err, opts);
   if (!found_ik) {
     return false;
   }
+
+  kinematic_state_->setJointGroupActivePositions(joint_model_group_.get(),
+                                                 ik_solution);
+  kinematic_state_->update();
 
   // Convert to robot state
   for (size_t i = 0; i < ik_solution.size(); ++i) {
@@ -85,7 +118,7 @@ ob::ValidStateSamplerPtr allocScrewValidSampler(
 
 ScrewSampler::ScrewSampler(const ob::StateSpace *state_space)
     : StateSampler(state_space), screw_bounds_(state_space->getDimension()) {
-  // Get robot description and move group parameters
+  // Get move group parameters
   std::string mg_string;
   state_space->params().getParam("move_group", mg_string);
 
@@ -130,22 +163,33 @@ void ScrewSampler::sample(ob::State *state,
   // Get the pose of this theta
   // TODO: multiple screw axis?
   Eigen::Isometry3d current_pose =
-      start_pose_ * screw_axis_.getTF(screw_state[0]);
+      screw_axis_.getTF(screw_state[0]) * start_pose_;
   geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
+
+  // Set up IK callback
+  kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
+      [this](const geometry_msgs::Pose &pose, const std::vector<double> &joints,
+             moveit_msgs::MoveItErrorCodes &error_code) {
+        ikCallbackFnAdapter(joint_model_group_, kinematic_state_,
+                            *planning_scene, joints, error_code);
+      };
 
   // Solve IK for the pose
   std::vector<double> ik_solution, seed_state;
-  kinematic_state_->setToRandomPositions();
   kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
                                             seed_state);
   moveit_msgs::MoveItErrorCodes err;
   kinematics::KinematicsQueryOptions opts;
   // opts.return_approximate_solution = true;
-  bool found_ik = ik_solver_->searchPositionIK(pose_msg, seed_state, 0.05,
-                                               ik_solution, err, opts);
+  bool found_ik = ik_solver_->searchPositionIK(
+      pose_msg, seed_state, 0.05, ik_solution, ik_callback_fn, err, opts);
   if (!found_ik) {
     return;
   }
+
+  kinematic_state_->setJointGroupPositions(joint_model_group_.get(),
+                                           ik_solution);
+  kinematic_state_->update();
 
   // // Convert to robot state
   for (size_t i = 0; i < ik_solution.size(); ++i) {

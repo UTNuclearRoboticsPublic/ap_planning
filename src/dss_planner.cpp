@@ -1,10 +1,11 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
-#include <ap_planning/screw_planner.hpp>
+#include <ap_planning/dss_planner.hpp>
 
 namespace ap_planning {
-ScrewPlanner::ScrewPlanner(const std::string& move_group_name,
-                           const std::string& robot_description_name) {
+DSSPlanner::DSSPlanner(const std::string& move_group_name,
+                       const std::string& robot_description_name) {
   // Load the robot model
+  robot_description_name_ = robot_description_name;
   robot_model_loader::RobotModelLoader robot_model_loader(
       robot_description_name);
   kinematic_model_ = robot_model_loader.getModel();
@@ -13,14 +14,20 @@ ScrewPlanner::ScrewPlanner(const std::string& move_group_name,
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
       *kinematic_model_->getJointModelGroup(move_group_name));
 
+  ik_solver_ = joint_model_group_->getSolverInstance();
+
+  psm_ = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(
+      robot_description_name_);
+
   // Set kinematic model for classes that will need it
   ScrewSampler::kinematic_model = kinematic_model_;
   ScrewValidityChecker::kinematic_model = kinematic_model_;
   ScrewValidSampler::kinematic_model = kinematic_model_;
 }
+DSSPlanner::~DSSPlanner() { cleanUp(); }
 
-ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
-                                       APPlanningResponse& res) {
+ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
+                                     APPlanningResponse& res) {
   // Set response to failing case
   res.joint_trajectory.joint_names.clear();
   res.joint_trajectory.points.clear();
@@ -31,13 +38,25 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
       std::make_shared<moveit::core::RobotState>(kinematic_model_);
   kinematic_state_->setToDefaultValues();
 
+  // Get the planning scene
+  psm_->requestPlanningSceneState();
+
+  planning_scene_ =
+      std::make_shared<planning_scene_monitor::LockedPlanningSceneRO>(psm_);
+
+  // Set planning scene for classes that will need it
+  ScrewSampler::planning_scene = planning_scene_;
+  ScrewValidSampler::planning_scene = planning_scene_;
+
   // Set up the state space for this plan
   if (!setupStateSpace(req)) {
+    cleanUp();
     return INITIALIZATION_FAIL;
   }
 
   // Set the parameters for the state space
   if (!setSpaceParameters(req, state_space_)) {
+    cleanUp();
     return INITIALIZATION_FAIL;
   }
 
@@ -46,7 +65,8 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
   state_space_->as<ob::CompoundStateSpace>()->lock();
 
   // Set up... the SimpleSetup
-  if (!setSimpleSetup(state_space_)) {
+  if (!setSimpleSetup(state_space_, req)) {
+    cleanUp();
     return INITIALIZATION_FAIL;
   }
 
@@ -54,10 +74,12 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
   std::vector<std::vector<double>> start_configs, goal_configs;
   if (passed_start_config_) {
     if (!findGoalStates(req, 10, start_configs, goal_configs)) {
+      cleanUp();
       return NO_IK_SOLUTION;
     }
   } else {
     if (!findStartGoalStates(req, 5, 10, start_configs, goal_configs)) {
+      cleanUp();
       return NO_IK_SOLUTION;
     }
   }
@@ -71,34 +93,44 @@ ap_planning::Result ScrewPlanner::plan(const APPlanningRequest& req,
   // Create and populate the goal object
   auto goal_obj = std::make_shared<ScrewGoal>(ss_->getSpaceInformation());
   for (const auto& goal_state : goal_configs) {
+    // TODO handle multi-screw
     goal_obj->addState(vectorToState(
-        state_space_, std::vector<double>(1, req.theta), goal_state));
+        state_space_, std::vector<double>(1, req.screw_path.at(0).theta),
+        goal_state));
   }
   ss_->setGoal(goal_obj);
 
   // Plan
-  ob::PlannerStatus solved = ss_->solve(5.0);
+  ob::PlannerStatus solved = ss_->solve(req.planning_time);
+  ap_planning::Result result = PLANNING_FAIL;
   if (solved) {
     ss_->simplifySolution(1.0);
 
     populateResponse(ss_->getSolutionPath(), req, res);
-    return SUCCESS;
+    result = SUCCESS;
   }
-
-  return PLANNING_FAIL;
+  cleanUp();
+  return result;
 }
 
-bool ScrewPlanner::setupStateSpace(const APPlanningRequest& req) {
+void DSSPlanner::cleanUp() {
+  planning_scene_.reset();
+  ScrewSampler::planning_scene.reset();
+  ScrewValidSampler::planning_scene.reset();
+}
+
+bool DSSPlanner::setupStateSpace(const APPlanningRequest& req) {
   state_space_.reset();
 
   // construct the state space we are planning in
   auto screw_space = std::make_shared<ob::RealVectorStateSpace>();
   auto joint_space = std::make_shared<ob::RealVectorStateSpace>();
 
-  // Add screw dimension
-  // TODO: multi-DoF problems?
+  // Add screw dimensions
   // TODO: make sure the theta is positive
-  screw_space->addDimension(0, req.theta);
+  for (const auto& segment : req.screw_path) {
+    screw_space->addDimension(0, segment.theta);
+  }
 
   // Go through joint group and add bounds for each joint
   for (const moveit::core::JointModel* joint :
@@ -127,24 +159,25 @@ bool ScrewPlanner::setupStateSpace(const APPlanningRequest& req) {
   return true;
 }
 
-bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
-                                      ompl::base::StateSpacePtr& space) {
+bool DSSPlanner::setSpaceParameters(const APPlanningRequest& req,
+                                    ompl::base::StateSpacePtr& space) {
   // We need to transform the screw to be in the starting frame
   geometry_msgs::TransformStamped tf_msg = getStartTF(req);
-  auto transformed_screw =
-      affordance_primitives::transformScrew(req.screw_msg, tf_msg);
 
   // Set the screw axis from transformed screw
-  screw_axis_.setScrewAxis(transformed_screw);
+  screw_axis_.setScrewAxis(req.screw_path.at(0).screw_msg);
+  // TODO handle multi-screw
 
   // Calculate the goal pose and set
   const Eigen::Isometry3d planning_to_start = tf2::transformToEigen(tf_msg);
-  goal_pose_ = planning_to_start * screw_axis_.getTF(req.theta);
+  // TODO handle multi-screw
+  goal_pose_ =
+      screw_axis_.getTF(req.screw_path.at(0).theta) * planning_to_start;
 
   // Add screw param (from starting pose screw)
   auto screw_param = std::make_shared<ap_planning::ScrewParam>("screw_param");
   screw_param->setValue(
-      affordance_primitives::screwMsgToStr(transformed_screw));
+      affordance_primitives::screwMsgToStr(req.screw_path.at(0).screw_msg));
   space->params().add(screw_param);
 
   // Add starting pose
@@ -167,7 +200,7 @@ bool ScrewPlanner::setSpaceParameters(const APPlanningRequest& req,
   return true;
 }
 
-affordance_primitives::TransformStamped ScrewPlanner::getStartTF(
+affordance_primitives::TransformStamped DSSPlanner::getStartTF(
     const APPlanningRequest& req) {
   geometry_msgs::TransformStamped tf_msg;
 
@@ -190,14 +223,16 @@ affordance_primitives::TransformStamped ScrewPlanner::getStartTF(
   }
 
   // Set the start pose
-  tf_msg.header.frame_id = req.screw_msg.header.frame_id;
+  // TODO handle multi-screw
+  tf_msg.header.frame_id = req.screw_path.at(0).screw_msg.header.frame_id;
   tf_msg.child_frame_id = req.ee_frame_name;
   start_pose_ = tf2::transformToEigen(tf_msg);
 
   return tf_msg;
 }
 
-bool ScrewPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space) {
+bool DSSPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space,
+                                const APPlanningRequest& req) {
   // Create the SimpleSetup class
   ss_ = std::make_shared<og::SimpleSetup>(space);
 
@@ -210,13 +245,24 @@ bool ScrewPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space) {
       ap_planning::allocScrewValidSampler);
 
   // Set planner
-  auto planner = std::make_shared<og::PRM>(ss_->getSpaceInformation());
-  ss_->setPlanner(planner);
+  if (req.planner == PlannerType::PRMstar) {
+    auto planner = std::make_shared<og::PRMstar>(ss_->getSpaceInformation());
+    ss_->setPlanner(planner);
+  } else if (req.planner == PlannerType::RRT) {
+    auto planner = std::make_shared<og::RRT>(ss_->getSpaceInformation());
+    ss_->setPlanner(planner);
+  } else if (req.planner == PlannerType::RRTconnect) {
+    auto planner = std::make_shared<og::RRTConnect>(ss_->getSpaceInformation());
+    ss_->setPlanner(planner);
+  } else {
+    auto planner = std::make_shared<og::PRM>(ss_->getSpaceInformation());
+    ss_->setPlanner(planner);
+  }
 
   return true;
 }
 
-bool ScrewPlanner::findStartGoalStates(
+bool DSSPlanner::findStartGoalStates(
     const APPlanningRequest& req, const size_t num_start, const size_t num_goal,
     std::vector<std::vector<double>>& start_configs,
     std::vector<std::vector<double>>& goal_configs) {
@@ -253,7 +299,7 @@ bool ScrewPlanner::findStartGoalStates(
   return start_configs.size() > 0 && goal_configs.size() > 0;
 }
 
-bool ScrewPlanner::findGoalStates(
+bool DSSPlanner::findGoalStates(
     const APPlanningRequest& req, const size_t num_goal,
     std::vector<std::vector<double>>& start_configs,
     std::vector<std::vector<double>>& goal_configs) {
@@ -284,28 +330,37 @@ bool ScrewPlanner::findGoalStates(
   return goal_configs.size() > 0;
 }
 
-void ScrewPlanner::increaseStateList(
+void DSSPlanner::increaseStateList(
     const affordance_primitives::Pose& pose,
     std::vector<std::vector<double>>& state_list) {
+  // Set up IK callback
+  kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
+      [this](const geometry_msgs::Pose& pose, const std::vector<double>& joints,
+             moveit_msgs::MoveItErrorCodes& error_code) {
+        ikCallbackFnAdapter(joint_model_group_, kinematic_state_,
+                            *planning_scene_, joints, error_code);
+      };
+
   // Try to solve the IK
-  if (!kinematic_state_->setFromIK(joint_model_group_.get(), pose)) {
+  std::vector<double> seed_state, ik_solution;
+  moveit_msgs::MoveItErrorCodes err;
+  kinematics::KinematicsQueryOptions opts;
+  kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
+                                            seed_state);
+  if (!ik_solver_->searchPositionIK(pose, seed_state, 0.05, ik_solution,
+                                    ik_callback_fn, err, opts)) {
     return;
   }
 
-  // Copy found solution to vector
-  std::vector<double> joint_values;
-  kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
-                                            joint_values);
-
   // If the solution is valid, add it to the list
-  if (checkDuplicateState(state_list, joint_values)) {
-    state_list.push_back(joint_values);
+  if (checkDuplicateState(state_list, ik_solution)) {
+    state_list.push_back(ik_solution);
   }
 }
 
-void ScrewPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
-                                    const APPlanningRequest& req,
-                                    APPlanningResponse& res) {
+void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
+                                  const APPlanningRequest& req,
+                                  APPlanningResponse& res) {
   // We can stop if the trajectory doesn't have points
   if (solution.getStateCount() < 2) {
     return;
@@ -335,7 +390,8 @@ void ScrewPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
       res.trajectory_is_valid = false;
 
       // Calculate the percent through the trajectory we made it
-      res.percentage_complete = screw_state[0] / req.theta;
+      // TODO handle multi-screw
+      res.percentage_complete = screw_state[0] / req.screw_path.at(0).theta;
       return;
     }
 
@@ -355,13 +411,15 @@ void ScrewPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
       *solution.getStates().back()->as<ob::CompoundStateSpace::StateType>();
   const ob::RealVectorStateSpace::StateType& screw_state =
       *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
-  const double err = fabs(req.theta - screw_state[0]);
+  // TODO handle multi-screw
+  const double err = fabs(req.screw_path.at(0).theta - screw_state[0]);
   if (err > 0.01) {
     res.trajectory_is_valid = false;
   } else {
     res.trajectory_is_valid = true;
   }
-  res.percentage_complete = screw_state[0] / req.theta;
+  // TODO handle multi-screw
+  res.percentage_complete = screw_state[0] / req.screw_path.at(0).theta;
   res.path_length = solution.length();
 }
 }  // namespace ap_planning
