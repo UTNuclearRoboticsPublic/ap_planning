@@ -124,9 +124,10 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   // Make sure the current pose is on the required screw axis
   Eigen::VectorXd error(6);
   error.setZero();
-  if (!affordance_primitives::constraintFn(this_state_pose, start_pose_,
-                                           screw_axis_, screw_bounds_.high[0],
-                                           screw_state[0], error)) {
+  if (!affordance_primitives::screwConstraint(
+          this_state_pose, start_pose_, screw_axis_,
+          std::make_pair(screw_bounds_.low[0], screw_bounds_.high[0]),
+          screw_state[0], error)) {
     return false;
   }
 
