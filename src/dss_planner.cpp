@@ -85,8 +85,6 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
     }
   }
 
-  std::cout << start_configs.size() << "   " << goal_configs.size() << "\n";
-
   // Set the start states
   for (const auto& start_state : start_configs) {
     ss_->addStartState(
