@@ -33,6 +33,7 @@
 #pragma once
 
 #include <affordance_primitive_msgs/ScrewStamped.h>
+#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_state/robot_state.h>
 #include <ompl/base/SpaceInformation.h>
@@ -164,6 +165,11 @@ class ScrewValidityChecker : public ob::StateValidityChecker {
   // Holds the kinematic model
   // NOTE: You must set this before creating instances of this class!
   inline static moveit::core::RobotModelPtr kinematic_model;
+
+  // Holds the planning scene, for collision checking
+  // NOTE: You must set this before creating instances of this class!
+  inline static std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
+      planning_scene;
 
  protected:
   ob::RealVectorBounds robot_bounds_;
