@@ -49,7 +49,7 @@ void show_screw(const affordance_primitives::ScrewStamped &screw_msg,
 void show_trajectory(const trajectory_msgs::JointTrajectory &traj,
                      moveit_visual_tools::MoveItVisualTools &visual_tools) {
   moveit_msgs::DisplayTrajectory joint_traj;
-  joint_traj.model_id = "puma_arm_and_base";
+  joint_traj.model_id = "Puma560";
   joint_traj.trajectory.push_back(moveit_msgs::RobotTrajectory());
   joint_traj.trajectory.at(0).joint_trajectory = traj;
 
@@ -88,10 +88,10 @@ std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
   collision_object.id = "screw1_box1";
   primitive.dimensions[primitive.BOX_X] = 0.1;
   primitive.dimensions[primitive.BOX_Y] = 1.5;
-  primitive.dimensions[primitive.BOX_Z] = 0.4;
+  primitive.dimensions[primitive.BOX_Z] = 1.5;
   box_pose.position.x = 0.25;
   box_pose.position.y = 0.0;
-  box_pose.position.z = 0.25;
+  box_pose.position.z = 0.0;
 
   // Add screw one object
   collision_object.primitives.push_back(primitive);
@@ -102,13 +102,30 @@ std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
 
   // Repeat
   collision_object.id = "screw2_box1";
-  primitive.dimensions[primitive.BOX_X] = 0.5;
-  primitive.dimensions[primitive.BOX_Y] = 0.1;
-  primitive.dimensions[primitive.BOX_Z] = 0.6;
-  box_pose.position.x = -0.1;
-  box_pose.position.y = -0.25;
-  box_pose.position.z = 0.25;
+  primitive.dimensions[primitive.BOX_X] = 1;
+  primitive.dimensions[primitive.BOX_Y] = 0.75;
+  primitive.dimensions[primitive.BOX_Z] = 1;
+  box_pose.position.x = 0.25;
+  box_pose.position.y = 0.25;
+  box_pose.position.z = -0.5;
 
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  primitive.dimensions[primitive.BOX_X] = 1;
+  primitive.dimensions[primitive.BOX_Y] = 0.75;
+  primitive.dimensions[primitive.BOX_Z] = 1;
+  box_pose.position.x = 4;
+  box_pose.position.y = 0.25;
+  box_pose.position.z = -0.5;
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+
+  primitive.dimensions[primitive.BOX_X] = 0.25;
+  primitive.dimensions[primitive.BOX_Y] = 0.25;
+  primitive.dimensions[primitive.BOX_Z] = 1;
+  box_pose.position.x = 2.2;
+  box_pose.position.y = -0.75;
+  box_pose.position.z = -0.5;
   collision_object.primitives.push_back(primitive);
   collision_object.primitive_poses.push_back(box_pose);
   output.push(collision_object);
@@ -116,12 +133,12 @@ std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
   collision_object.primitive_poses.clear();
 
   collision_object.id = "screw3_box1";
-  primitive.dimensions[primitive.BOX_X] = 1.5;
-  primitive.dimensions[primitive.BOX_Y] = 1.5;
-  primitive.dimensions[primitive.BOX_Z] = 0.1;
-  box_pose.position.x = 0.5;
-  box_pose.position.y = 0.0;
-  box_pose.position.z = 0.75;
+  primitive.dimensions[primitive.BOX_X] = 0.1;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 1;
+  box_pose.position.x = 0.15;
+  box_pose.position.y = -0.6;
+  box_pose.position.z = -0.25;
 
   collision_object.primitives.push_back(primitive);
   collision_object.primitive_poses.push_back(box_pose);
@@ -130,71 +147,21 @@ std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
   collision_object.primitive_poses.clear();
 
   collision_object.id = "screw4_box1";
-  primitive.dimensions[primitive.BOX_X] = 1.5;
-  primitive.dimensions[primitive.BOX_Y] = 0.1;
-  primitive.dimensions[primitive.BOX_Z] = 1.5;
-  box_pose.position.x = 0.5;
-  box_pose.position.y = -0.2;
-  box_pose.position.z = 0.25;
-
-  collision_object.primitives.push_back(primitive);
-  collision_object.primitive_poses.push_back(box_pose);
-  primitive.dimensions[primitive.BOX_X] = 1.5;
-  primitive.dimensions[primitive.BOX_Y] = 0.1;
-  primitive.dimensions[primitive.BOX_Z] = 1.5;
-  box_pose.position.x = 0.5;
-  box_pose.position.y = 0.2;
-  box_pose.position.z = 0.25;
-  collision_object.primitives.push_back(primitive);
-  collision_object.primitive_poses.push_back(box_pose);
-  output.push(collision_object);
-  collision_object.primitives.clear();
-  collision_object.primitive_poses.clear();
-
-  collision_object.id = "screw5_box1";
-  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_X] = 0.1;
   primitive.dimensions[primitive.BOX_Y] = 1.5;
-  primitive.dimensions[primitive.BOX_Z] = 0.1;
-  box_pose.position.x = 0.5;
-  box_pose.position.y = 0.0;
-  box_pose.position.z = 0.65;
-
-  collision_object.primitives.push_back(primitive);
-  collision_object.primitive_poses.push_back(box_pose);
-  output.push(collision_object);
-  collision_object.primitives.clear();
-  collision_object.primitive_poses.clear();
-
-  collision_object.id = "screw6_box1";
-  primitive.dimensions[primitive.BOX_X] = 1.5;
-  primitive.dimensions[primitive.BOX_Y] = 1.5;
-  primitive.dimensions[primitive.BOX_Z] = 0.1;
-  box_pose.position.x = 0.5;
-  box_pose.position.y = 0.0;
-  box_pose.position.z = 0.65;
-
-  collision_object.primitives.push_back(primitive);
-  collision_object.primitive_poses.push_back(box_pose);
-  output.push(collision_object);
-  collision_object.primitives.clear();
-  collision_object.primitive_poses.clear();
-
-  collision_object.id = "screw7_box1";
-  primitive.dimensions[primitive.BOX_X] = 1.5;
-  primitive.dimensions[primitive.BOX_Y] = 0.1;
   primitive.dimensions[primitive.BOX_Z] = 1.5;
-  box_pose.position.x = 0.5;
-  box_pose.position.y = -0.2;
-  box_pose.position.z = 0.25;
+  box_pose.position.x = 0.6;
+  box_pose.position.y = -1.05;
+  box_pose.position.z = 0.1;
 
   collision_object.primitives.push_back(primitive);
   collision_object.primitive_poses.push_back(box_pose);
   primitive.dimensions[primitive.BOX_X] = 1.5;
   primitive.dimensions[primitive.BOX_Y] = 0.1;
   primitive.dimensions[primitive.BOX_Z] = 1.5;
-  box_pose.position.x = 0.5;
-  box_pose.position.y = 0.2;
-  box_pose.position.z = 0.25;
+  box_pose.position.x = 0.2;
+  box_pose.position.y = 0.4;
+  box_pose.position.z = 0.1;
   collision_object.primitives.push_back(primitive);
   collision_object.primitive_poses.push_back(box_pose);
   output.push(collision_object);
@@ -216,8 +183,8 @@ int main(int argc, char **argv) {
 
   moveit::core::RobotStatePtr kinematic_state(
       new moveit::core::RobotState(kinematic_model));
-  std::vector<double> default_joint_state{0, -0.785, 0,    -2.356,
-                                          0, 1.571,  0.785};
+  std::vector<double> default_joint_state{-0.2, 0.2, 0,    0.1, -0.2,
+                                          0.5,  0.1, -0.1, 0};
   kinematic_state->setJointGroupPositions("puma_arm_and_base",
                                           default_joint_state);
 
@@ -232,6 +199,28 @@ int main(int argc, char **argv) {
   bool use_obstacles;
   nh.param<bool>(ros::this_node::getName() + "/add_collision_objects",
                  use_obstacles, true);
+
+  // Set planner type
+  std::string planner_name;
+  nh.param<std::string>(ros::this_node::getName() + "/planner", planner_name,
+                        "prm");
+  std::transform(planner_name.begin(), planner_name.end(), planner_name.begin(),
+                 ::tolower);
+
+  ap_planning::PlannerType planner_type;
+  if (planner_name == "prm") {
+    planner_type = ap_planning::PlannerType::PRM;
+  } else if (planner_name == "prmstar") {
+    planner_type = ap_planning::PlannerType::PRMstar;
+  } else if (planner_name == "rrt") {
+    planner_type = ap_planning::PlannerType::RRT;
+  } else if (planner_name == "rrtconnect") {
+    planner_type = ap_planning::PlannerType::RRTconnect;
+  } else {
+    ROS_WARN_STREAM("Unknown planner type: '" << planner_name
+                                              << "', using PRM");
+    planner_type = ap_planning::PlannerType::PRM;
+  }
 
   // Add collision objects
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
@@ -251,7 +240,8 @@ int main(int argc, char **argv) {
   single_screw.screw_msg.header.frame_id = "world";
   single_request.screw_path.push_back(single_screw);
   single_request.ee_frame_name = "link7";
-  single_request.planning_time = 10;
+  single_request.planning_time = 20;
+  single_request.planner = planner_type;
 
   // For now, all requests start at same point
   single_request.start_pose.pose.position.x = 0.5;
@@ -260,54 +250,35 @@ int main(int argc, char **argv) {
   single_request.start_pose.pose.orientation.w = 0;
 
   // Add some test cases
-  single_request.screw_path.at(0).theta = 0.25 * M_PI;
+  single_request.screw_path.at(0).theta = 0.5 * M_PI;
   single_request.screw_path.at(0).screw_msg.origin =
       single_request.start_pose.pose.position;
   single_request.screw_path.at(0).screw_msg.axis.x = 1;
   planning_queue.push(single_request);
 
-  // This time, send a joint configuration
+  // A long linear plan
+  single_request.screw_path.at(0).theta = 5;
+  single_request.screw_path.at(0).screw_msg.is_pure_translation = true;
+  single_request.screw_path.at(0).screw_msg.origin.z = 0.1;
+  single_request.start_pose.pose.position.z = 0.1;
+  planning_queue.push(single_request);
+
+  single_request.screw_path.at(0).screw_msg.is_pure_translation = false;
+  single_request.screw_path.at(0).theta = 0.5 * M_PI;
+  single_request.screw_path.at(0).screw_msg.axis.x = 0;
+  single_request.screw_path.at(0).screw_msg.axis.z = 1;
+  single_request.screw_path.at(0).screw_msg.origin.x = 0.3318;
+  single_request.screw_path.at(0).screw_msg.origin.y = -0.15;
+  single_request.screw_path.at(0).screw_msg.origin.z = 0.16;
   single_request.start_joint_state = default_joint_state;
   planning_queue.push(single_request);
 
   single_request.start_joint_state.clear();
   single_request.screw_path.at(0).theta = 0.5 * M_PI;
-  single_request.screw_path.at(0).screw_msg.axis.x = -1;
-  planning_queue.push(single_request);
-
-  single_request.screw_path.at(0).theta = 0.25 * M_PI;
   single_request.screw_path.at(0).screw_msg.axis.x = 0;
   single_request.screw_path.at(0).screw_msg.axis.z = 1;
+  single_request.screw_path.at(0).screw_msg.pitch = 0.2;
   planning_queue.push(single_request);
-
-  single_request.screw_path.at(0).screw_msg.origin.x -= 0.1;
-  single_request.screw_path.at(0).screw_msg.pitch = 0.1;
-  planning_queue.push(single_request);
-
-  single_request.screw_path.at(0).screw_msg.origin = geometry_msgs::Point();
-  single_request.screw_path.at(0).screw_msg.origin.z = -0.25;
-  planning_queue.push(single_request);
-
-  single_request.screw_path.at(0).theta = 0.75;  // meters
-  single_request.screw_path.at(0).screw_msg.origin =
-      single_request.start_pose.pose.position;
-  single_request.screw_path.at(0).screw_msg.axis.x = -1;
-  single_request.screw_path.at(0).screw_msg.axis.z = 1;
-  single_request.screw_path.at(0).screw_msg.is_pure_translation = true;
-  planning_queue.push(single_request);
-
-  // This is the moveit ompl_constrained_planning tutorial line
-  if (!use_obstacles) {
-    single_request.start_joint_state = default_joint_state;
-    single_request.screw_path.at(0).theta = 0.3;
-    single_request.screw_path.at(0).screw_msg.origin.x = 0.307;
-    single_request.screw_path.at(0).screw_msg.origin.y = 0;
-    single_request.screw_path.at(0).screw_msg.origin.z = 0.59;
-    single_request.screw_path.at(0).screw_msg.axis.x = 0;
-    single_request.screw_path.at(0).screw_msg.axis.y = 1;
-    single_request.screw_path.at(0).screw_msg.axis.z = -1;
-    planning_queue.push(single_request);
-  }
 
   ap_planning::DSSPlanner ap_planner("puma_arm_and_base");
   ap_planning::SequentialStepPlanner sequential_step_planner(nh);

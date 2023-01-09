@@ -47,6 +47,7 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
   // Set planning scene for classes that will need it
   ScrewSampler::planning_scene = planning_scene_;
   ScrewValidSampler::planning_scene = planning_scene_;
+  ScrewValidityChecker::planning_scene = planning_scene_;
 
   // Set up the state space for this plan
   if (!setupStateSpace(req)) {
@@ -73,12 +74,12 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
   // Create start and goal states
   std::vector<std::vector<double>> start_configs, goal_configs;
   if (passed_start_config_) {
-    if (!findGoalStates(req, 10, start_configs, goal_configs)) {
+    if (!findGoalStates(req, 30, start_configs, goal_configs)) {
       cleanUp();
       return NO_IK_SOLUTION;
     }
   } else {
-    if (!findStartGoalStates(req, 5, 10, start_configs, goal_configs)) {
+    if (!findStartGoalStates(req, 20, 30, start_configs, goal_configs)) {
       cleanUp();
       return NO_IK_SOLUTION;
     }
@@ -117,6 +118,7 @@ void DSSPlanner::cleanUp() {
   planning_scene_.reset();
   ScrewSampler::planning_scene.reset();
   ScrewValidSampler::planning_scene.reset();
+  ScrewValidityChecker::planning_scene.reset();
 }
 
 bool DSSPlanner::setupStateSpace(const APPlanningRequest& req) {
