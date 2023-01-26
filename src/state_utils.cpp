@@ -122,22 +122,19 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   auto this_state_pose = kinematic_state_->getFrameTransform(ee_frame_name_);
 
   // Initialize struct for constraintFn
-  Eigen::VectorXd phi_low(
-      (Eigen::VectorXd() << screw_bounds_.low[0]).finished());
-  Eigen::VectorXd phi_high(
-      (Eigen::VectorXd() << screw_bounds_.high[0]).finished());
-  const std::pair<Eigen::VectorXd, Eigen::VectorXd> phi_bounds = {phi_low,
-                                                                  phi_high};
-  affordance_primitives::ScrewConstraintInfo screw_constraint_info{
-      phi_bounds, start_pose_, this_state_pose};
-  screw_constraint_info.screw_axis_set.push_back(screw_axis_);
+  affordance_primitives::ScrewConstraintInfo constraints;
+  constraints.phi_bounds.first(0) = screw_bounds_.low[0];
+  constraints.phi_bounds.second(0) = screw_bounds_.high[0];
+  constraints.tf_m_to_s = start_pose_;
+  constraints.tf_m_to_q = this_state_pose;
+  constraints.screw_axis_set.push_back(screw_axis_);
 
   // Call constraintFn
-  if (!affordance_primitives::constraintFn(screw_constraint_info)) {
+  if (!affordance_primitives::chainedConstraintFn(constraints)) {
     return false;
   }
 
-  if (screw_constraint_info.best_error.norm() > 0.005) {
+  if (constraints.error.norm() > 0.005) {
     return false;
   }
 
