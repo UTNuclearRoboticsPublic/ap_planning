@@ -43,7 +43,7 @@ void show_screw(const affordance_primitives::ScrewStamped &screw_msg,
   Eigen::Vector3d end_point = origin + 0.2 * axis.normalized();
   geometry_msgs::Point end = tf2::toMsg(end_point);
 
-  visual_tools.publishArrow(screw_msg.origin, end);
+  visual_tools.publishArrow(screw_msg.origin, end, rviz_visual_tools::ORANGE, rviz_visual_tools::LARGE);
   visual_tools.trigger();
 }
 
