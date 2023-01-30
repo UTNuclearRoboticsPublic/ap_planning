@@ -103,17 +103,18 @@ std::queue<ap_planning::APPlanningRequest> get_planning_queue(
   single_request.start_pose.pose.orientation.w = 0;
 
   // Add some test cases
-  single_request.screw_path.at(0).theta = 0.2;
+  single_request.screw_path.at(0).start_theta = 0.0;
+  single_request.screw_path.at(0).end_theta = 0.2;
   single_request.screw_path.at(0).screw_msg.is_pure_translation = true;
   single_request.screw_path.at(0).screw_msg.origin =
       single_request.start_pose.pose.position;
   single_request.screw_path.at(0).screw_msg.axis.z = 1;
   single_request.screw_path.at(1) = single_request.screw_path.at(0);
   single_request.screw_path.at(1).screw_msg.origin.z +=
-      single_request.screw_path.at(0).theta;
+      single_request.screw_path.at(0).end_theta;
   single_request.screw_path.at(1).screw_msg.axis.y = 1;
   single_request.screw_path.push_back(screw_0);
-  single_request.screw_path.at(2).theta = 0.5 * M_PI;
+  single_request.screw_path.at(2).end_theta = 0.5 * M_PI;
   single_request.screw_path.at(2).screw_msg.is_pure_translation = false;
   single_request.screw_path.at(2).screw_msg.axis.z = -1;
   single_request.screw_path.at(2).screw_msg.origin =

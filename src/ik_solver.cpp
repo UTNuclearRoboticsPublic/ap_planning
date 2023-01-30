@@ -308,7 +308,8 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
   ros::Duration duration_shift(0);
   for (const auto& segment : req.screw_path) {
     ap_goal.screw = segment.screw_msg;
-    ap_goal.screw_distance = segment.theta;
+    ap_goal.theta_start = segment.start_theta;
+    ap_goal.theta_end = segment.end_theta;
 
     // TODO: think about getting this in as a param
     ap_goal.theta_dot = 0.1;
@@ -322,8 +323,9 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     }
 
     // Figure out how many waypoints to do
+    const double theta_span = segment.end_theta - segment.end_theta;
     const size_t num_waypoints = calculateNumWaypoints(
-        segment.screw_msg, *tfmsg_moving_to_task, segment.theta);
+        segment.screw_msg, *tfmsg_moving_to_task, theta_span);
 
     // Generate the affordance trajectory
     std::optional<affordance_primitives::AffordanceTrajectory> ap_trajectory =

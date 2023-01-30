@@ -75,7 +75,8 @@ enum PlannerType { PRM, PRMstar, RRT, RRTconnect };
  */
 struct ScrewSegment {
   affordance_primitive_msgs::ScrewStamped screw_msg;
-  double theta;
+  double start_theta;
+  double end_theta;
 };
 
 /**

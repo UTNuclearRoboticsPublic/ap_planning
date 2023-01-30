@@ -42,7 +42,8 @@ void show_screw(const affordance_primitives::ScrewStamped &screw_msg,
   Eigen::Vector3d end_point = origin + 0.2 * axis.normalized();
   geometry_msgs::Point end = tf2::toMsg(end_point);
 
-  visual_tools.publishArrow(screw_msg.origin, end, rviz_visual_tools::ORANGE, rviz_visual_tools::LARGE);
+  visual_tools.publishArrow(screw_msg.origin, end, rviz_visual_tools::ORANGE,
+                            rviz_visual_tools::LARGE);
   visual_tools.trigger();
 }
 
@@ -250,21 +251,22 @@ int main(int argc, char **argv) {
   single_request.start_pose.pose.orientation.w = 0;
 
   // Add some test cases
-  single_request.screw_path.at(0).theta = 0.5 * M_PI;
+  single_request.screw_path.at(0).start_theta = 0.0;
+  single_request.screw_path.at(0).end_theta = 0.5 * M_PI;
   single_request.screw_path.at(0).screw_msg.origin =
       single_request.start_pose.pose.position;
   single_request.screw_path.at(0).screw_msg.axis.x = 1;
   planning_queue.push(single_request);
 
   // A long linear plan
-  single_request.screw_path.at(0).theta = 5;
+  single_request.screw_path.at(0).end_theta = 5;
   single_request.screw_path.at(0).screw_msg.is_pure_translation = true;
   single_request.screw_path.at(0).screw_msg.origin.z = 0.1;
   single_request.start_pose.pose.position.z = 0.1;
   planning_queue.push(single_request);
 
   single_request.screw_path.at(0).screw_msg.is_pure_translation = false;
-  single_request.screw_path.at(0).theta = 0.5 * M_PI;
+  single_request.screw_path.at(0).end_theta = 0.5 * M_PI;
   single_request.screw_path.at(0).screw_msg.axis.x = 0;
   single_request.screw_path.at(0).screw_msg.axis.z = 1;
   single_request.screw_path.at(0).screw_msg.origin.x = 0.3318;
@@ -274,7 +276,7 @@ int main(int argc, char **argv) {
   planning_queue.push(single_request);
 
   single_request.start_joint_state.clear();
-  single_request.screw_path.at(0).theta = 0.5 * M_PI;
+  single_request.screw_path.at(0).end_theta = 0.5 * M_PI;
   single_request.screw_path.at(0).screw_msg.axis.x = 0;
   single_request.screw_path.at(0).screw_msg.axis.z = 1;
   single_request.screw_path.at(0).screw_msg.pitch = 0.2;

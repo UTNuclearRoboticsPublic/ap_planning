@@ -96,7 +96,7 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
   for (const auto& goal_state : goal_configs) {
     // TODO handle multi-screw
     goal_obj->addState(vectorToState(
-        state_space_, std::vector<double>(1, req.screw_path.at(0).theta),
+        state_space_, std::vector<double>(1, req.screw_path.at(0).end_theta),
         goal_state));
   }
   ss_->setGoal(goal_obj);
@@ -129,9 +129,11 @@ bool DSSPlanner::setupStateSpace(const APPlanningRequest& req) {
   auto joint_space = std::make_shared<ob::RealVectorStateSpace>();
 
   // Add screw dimensions
-  // TODO: make sure the theta is positive
   for (const auto& segment : req.screw_path) {
-    screw_space->addDimension(0, segment.theta);
+    if (segment.start_theta > segment.end_theta) {
+      return false;
+    }
+    screw_space->addDimension(segment.start_theta, segment.end_theta);
   }
 
   // Go through joint group and add bounds for each joint
@@ -174,7 +176,7 @@ bool DSSPlanner::setSpaceParameters(const APPlanningRequest& req,
   const Eigen::Isometry3d planning_to_start = tf2::transformToEigen(tf_msg);
   // TODO handle multi-screw
   goal_pose_ =
-      screw_axis_.getTF(req.screw_path.at(0).theta) * planning_to_start;
+      screw_axis_.getTF(req.screw_path.at(0).end_theta) * planning_to_start;
 
   // Add screw param (from starting pose screw)
   auto screw_param = std::make_shared<ap_planning::ScrewParam>("screw_param");
@@ -393,7 +395,7 @@ void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
 
       // Calculate the percent through the trajectory we made it
       // TODO handle multi-screw
-      res.percentage_complete = screw_state[0] / req.screw_path.at(0).theta;
+      res.percentage_complete = screw_state[0] / req.screw_path.at(0).end_theta;
       return;
     }
 
@@ -414,14 +416,14 @@ void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
   const ob::RealVectorStateSpace::StateType& screw_state =
       *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
   // TODO handle multi-screw
-  const double err = fabs(req.screw_path.at(0).theta - screw_state[0]);
+  const double err = fabs(req.screw_path.at(0).end_theta - screw_state[0]);
   if (err > 0.01) {
     res.trajectory_is_valid = false;
   } else {
     res.trajectory_is_valid = true;
   }
   // TODO handle multi-screw
-  res.percentage_complete = screw_state[0] / req.screw_path.at(0).theta;
+  res.percentage_complete = screw_state[0] / req.screw_path.at(0).end_theta;
   res.path_length = solution.length();
 }
 }  // namespace ap_planning
