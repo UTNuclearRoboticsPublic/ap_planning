@@ -323,7 +323,7 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     }
 
     // Figure out how many waypoints to do
-    const double theta_span = segment.end_theta - segment.end_theta;
+    const double theta_span = segment.end_theta - segment.start_theta;
     const size_t num_waypoints = calculateNumWaypoints(
         segment.screw_msg, *tfmsg_moving_to_task, theta_span);
 

@@ -123,8 +123,12 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
 
   // Initialize struct for constraintFn
   affordance_primitives::ScrewConstraintInfo constraints;
-  constraints.phi_bounds.first(0) = screw_bounds_.low[0];
-  constraints.phi_bounds.second(0) = screw_bounds_.high[0];
+  constraints.phi_bounds.first.resize(screw_bounds_.low.size());
+  constraints.phi_bounds.second.resize(screw_bounds_.high.size());
+  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
+    constraints.phi_bounds.first(i) = screw_bounds_.low.at(i);
+    constraints.phi_bounds.second(i) = screw_bounds_.high.at(i);
+  }
   constraints.tf_m_to_s = start_pose_;
   constraints.tf_m_to_q = this_state_pose;
   constraints.screw_axis_set.push_back(screw_axis_);
