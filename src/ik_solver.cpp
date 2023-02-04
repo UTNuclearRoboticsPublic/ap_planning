@@ -1,5 +1,6 @@
 #include <bio_ik/bio_ik.h>
 #include <affordance_primitives/screw_model/screw_execution.hpp>
+#include <affordance_primitives/screw_planning/screw_planning.hpp>
 #include <ap_planning/ik_solver.hpp>
 
 #include <pluginlib/class_list_macros.h>
@@ -258,14 +259,37 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
 
   setUp(res);
 
+  // Set up a constraints struct
+  const size_t m = req.screw_path.size();
+  affordance_primitives::ScrewConstraintInfo constraints =
+      ap_planning::getConstraintInfo(req);
+
   // Make a new robot state
   moveit::core::RobotStatePtr current_state(
       new moveit::core::RobotState(kinematic_model_));
   std::vector<double> starting_joint_config = req.start_joint_state;
 
-  if (req.start_joint_state.size() != joint_model_group_->getVariableCount()) {
+  geometry_msgs::Pose first_pose;
+  const bool passed_start_joint_state =
+      req.start_joint_state.size() == joint_model_group_->getVariableCount();
+  if (passed_start_joint_state) {
+    // Copy the starting position
+    current_state->setJointGroupPositions(joint_model_group_,
+                                          req.start_joint_state);
+    if (!current_state->knowsFrameTransform(req.ee_frame_name)) {
+      ROS_WARN_STREAM("Unknown EE name");
+      return INVALID_GOAL;
+    }
+    constraints.tf_m_to_s = current_state->getFrameTransform(req.ee_frame_name);
+  } else {
     // Use IK to find the first joint state
-    const auto first_pose = req.start_pose.pose;
+    tf2::fromMsg(req.start_pose.pose, constraints.tf_m_to_s);
+
+    // Calculate the starting pose
+    const auto tf_start_pose = affordance_primitives::getPoseOnPath(
+        constraints, constraints.phi_bounds.first);
+    first_pose = tf2::toMsg(tf_start_pose);
+
     trajectory_msgs::JointTrajectoryPoint point;
     bool found_start_config = false;
     for (size_t i = 0; i < 5; ++i) {
@@ -282,101 +306,77 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     }
     current_state->copyJointGroupPositions(joint_model_group_,
                                            starting_joint_config);
-  } else {
-    // Copy the starting position
-    current_state->setJointGroupPositions(joint_model_group_,
-                                          req.start_joint_state);
   }
 
-  // We will check the first IK solution is close to the starting state
-  trajectory_msgs::JointTrajectoryPoint starting_point;
-  current_state->copyJointGroupPositions(joint_model_group_,
-                                         starting_point.positions);
-  current_state->update(true);
+  // Create the trajectory
+  affordance_primitive_msgs::AffordanceTrajectory affordance_traj;
+  affordance_traj.header.frame_id =
+      req.screw_path.front().screw_msg.header.frame_id;
+  double time_now = 0;
 
-  // Create an AP Goal to use internally
-  affordance_primitives::AffordancePrimitiveGoal ap_goal;
-  ap_goal.moving_frame_source = ap_goal.PROVIDED;
-  ap_goal.moving_to_task_frame = tf2::eigenToTransform(
-      current_state->getGlobalLinkTransform(req.ee_frame_name).inverse());
-  ap_goal.moving_to_task_frame.header.frame_id = req.ee_frame_name;
-  ap_goal.moving_to_task_frame.child_frame_id =
-      kinematic_model_->getModelFrame();
+  affordance_primitive_msgs::AffordanceWaypoint first_wp;
+  first_wp.time_from_start = ros::Duration().fromSec(time_now);
+  first_wp.pose = first_pose;
+  affordance_traj.trajectory.push_back(first_wp);
 
-  // Go through each screw axis and add it to the path
-  affordance_primitives::AffordanceTrajectory full_trajectory;
-  ros::Duration duration_shift(0);
-  for (const auto& segment : req.screw_path) {
-    ap_goal.screw = segment.screw_msg;
-    ap_goal.theta_start = segment.start_theta;
-    ap_goal.theta_end = segment.end_theta;
+  // Go through the screw segments
+  const double theta_dot = 0.1;  // TODO do this better
+  double lambda = 0;
+  auto phi = constraints.phi_bounds.first;
+  for (size_t i = 0; i < m; ++i) {
+    // Figure out lambda spacing on this axis
+    const double lambda_step = calculateSegmentSpacing(req.screw_path.at(i));
+    lambda += lambda_step;
+    time_now += lambda_step / theta_dot;
 
-    // TODO: think about getting this in as a param
-    ap_goal.theta_dot = 0.1;
+    // Calculate when we should stop for this segment
+    phi(i) = req.screw_path.at(i).end_theta;
+    const double lambda_max =
+        affordance_primitives::getLambda(phi, constraints.phi_bounds);
 
-    // Check the tf was valid
-    std::optional<geometry_msgs::TransformStamped> tfmsg_moving_to_task =
-        screw_executor_.getTFInfo(ap_goal);
-    if (!tfmsg_moving_to_task.has_value()) {
-      cleanUp();
-      return ap_planning::INVALID_GOAL;
+    // Go through and calculate all the poses for this point
+    while (lambda <= lambda_max) {
+      const auto phi_now =
+          affordance_primitives::getPhi(lambda, constraints.phi_bounds);
+      const auto waypoint_now =
+          affordance_primitives::getPoseOnPath(constraints, phi_now);
+      lambda += lambda_step;
+      time_now += lambda_step / theta_dot;
+
+      // Stuff into ROS type
+      affordance_primitive_msgs::AffordanceWaypoint this_wp;
+      this_wp.time_from_start = ros::Duration().fromSec(time_now);
+      this_wp.pose = tf2::toMsg(waypoint_now);
+      affordance_traj.trajectory.push_back(this_wp);
     }
-
-    // Figure out how many waypoints to do
-    const double theta_span = segment.end_theta - segment.start_theta;
-    const size_t num_waypoints = calculateNumWaypoints(
-        segment.screw_msg, *tfmsg_moving_to_task, theta_span);
-
-    // Generate the affordance trajectory
-    std::optional<affordance_primitives::AffordanceTrajectory> ap_trajectory =
-        screw_executor_.getTrajectoryCommands(ap_goal, num_waypoints);
-    if (!ap_trajectory.has_value()) {
-      cleanUp();
-      return ap_planning::INVALID_GOAL;
-    }
-
-    // Add trajectory
-    for (const auto& wp : ap_trajectory->trajectory) {
-      full_trajectory.trajectory.push_back(wp);
-      full_trajectory.trajectory.back().time_from_start += duration_shift;
-    }
-
-    // Set up for next segment
-    duration_shift = full_trajectory.trajectory.back().time_from_start;
-    duration_shift += ap_trajectory->trajectory.at(1).time_from_start;
-
-    Eigen::Isometry3d last_wp;
-    tf2::fromMsg(full_trajectory.trajectory.back().pose, last_wp);
-    ap_goal.moving_to_task_frame = tf2::eigenToTransform(last_wp.inverse());
-    ap_goal.moving_to_task_frame.header.frame_id = req.ee_frame_name;
-    ap_goal.moving_to_task_frame.child_frame_id =
-        kinematic_model_->getModelFrame();
   }
 
-  // Do the planning
-  return plan(full_trajectory, starting_joint_config, req.ee_frame_name, res);
+  return plan(affordance_traj, starting_joint_config, req.ee_frame_name, res);
 }
 
-size_t IKSolver::calculateNumWaypoints(
-    const affordance_primitive_msgs::ScrewStamped& screw_msg,
-    const geometry_msgs::TransformStamped& tf_msg, const double theta) {
+double IKSolver::calculateSegmentSpacing(const ScrewSegment& segment) {
+  const double theta = segment.end_theta - segment.start_theta;
+
   // Pure translation case
-  if (screw_msg.is_pure_translation) {
-    return ceil(fabs(theta) / waypoint_dist_);
+  if (segment.screw_msg.is_pure_translation) {
+    const double num_waypoints = ceil(theta / waypoint_dist_);
+    return theta / num_waypoints;
   }
 
-  // Find the distance from moving frame to screw axis
-  Eigen::Vector3d tf_dist, screw_origin_dist;
-  tf2::fromMsg(tf_msg.transform.translation, tf_dist);
-  tf2::fromMsg(screw_msg.origin, screw_origin_dist);
-  const double screw_distance = (tf_dist + screw_origin_dist).norm();
+  Eigen::Vector3d screw_dist, axis;
+  tf2::fromMsg(segment.screw_msg.origin, screw_dist);
+  tf2::fromMsg(segment.screw_msg.axis, axis);
 
-  // Calculate min waypoints for distance limiting and angle limiting
-  const size_t wps_ang = ceil(fabs(theta) / waypoint_ang_);
-  const size_t wps_lin = ceil(fabs(theta) * screw_distance / waypoint_dist_);
+  // Project origin distance onto axis plane, to get distance to axis
+  screw_dist -= (screw_dist.dot(axis)) / (axis.squaredNorm()) * axis;
 
-  // Return whichever required more waypoints
-  return std::max(wps_ang, wps_lin);
+  // Calculate the number of waypoints we need for angular and linear
+  const double wps_ang = ceil(theta / waypoint_ang_);
+  const double wps_lin = ceil(theta * screw_dist.norm() / waypoint_ang_);
+
+  // Use whichever needed more
+  const double num_waypoints = std::max(wps_ang, wps_lin);
+  return theta / num_waypoints;
 }
 }  // namespace ap_planning
 

@@ -71,6 +71,7 @@ add_library(${PROJECT_NAME}
   src/ik_solver.cpp
   src/sequential_step_planner.cpp
   src/dss_planner.cpp
+  src/screw_path_utils.cpp
   src/state_sampling.cpp
   src/state_utils.cpp
 )

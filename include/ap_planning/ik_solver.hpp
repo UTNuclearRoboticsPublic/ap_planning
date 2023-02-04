@@ -139,9 +139,7 @@ class IKSolver : public IKSolverBase {
   void setUp(APPlanningResponse& res);
   void cleanUp();
 
-  size_t calculateNumWaypoints(
-      const affordance_primitive_msgs::ScrewStamped& screw_msg,
-      const geometry_msgs::TransformStamped& tf_msg, const double theta);
+  double calculateSegmentSpacing(const ScrewSegment& segment);
 
   /** General check to make sure 2 joint states are relatively close together
    *
