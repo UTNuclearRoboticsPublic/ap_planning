@@ -74,10 +74,17 @@ ScrewValidityChecker::ScrewValidityChecker(const ob::SpaceInformationPtr &si)
   std::string screw_msg_string, pose_msg_string;
   si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
   si->getStateSpace()->params().getParam("pose_param", pose_msg_string);
-  screw_axis_.setScrewAxis(
-      *affordance_primitives::strToScrewMsg(screw_msg_string));
   tf2::fromMsg(affordance_primitives::strToPose(pose_msg_string)->pose,
                start_pose_);
+
+  const auto screw_msgs =
+      affordance_primitives::strToScrewMsgVector(screw_msg_string);
+  screw_axes_.reserve(screw_msgs.size());
+  for (const auto &msg : screw_msgs) {
+    affordance_primitives::ScrewAxis axis;
+    axis.setScrewAxis(msg);
+    screw_axes_.push_back(axis);
+  }
 
   ob::CompoundStateSpace *compound_space =
       si_->getStateSpace()->as<ob::CompoundStateSpace>();
@@ -101,6 +108,7 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
     if (screw_state[i] > screw_bounds_.high[i] ||
         screw_state[i] < screw_bounds_.low[i]) {
+      std::cout << "Screw bounds\n";
       return false;
     }
   }
@@ -110,6 +118,7 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   for (size_t i = 0; i < robot_bounds_.low.size(); ++i) {
     if (robot_state[i] > robot_bounds_.high[i] ||
         robot_state[i] < robot_bounds_.low[i]) {
+      std::cout << "Robot bounds\n";
       return false;
     }
     joint_state[i] = robot_state[i];
@@ -131,14 +140,18 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   }
   constraints.tf_m_to_s = start_pose_;
   constraints.tf_m_to_q = this_state_pose;
-  constraints.screw_axis_set.push_back(screw_axis_);
+  constraints.screw_axis_set = screw_axes_;
 
   // Call constraintFn
   if (!affordance_primitives::chainedConstraintFn(constraints)) {
+    std::cout << "CONSTRAINTS FAILED\n";
     return false;
   }
 
   if (constraints.error.norm() > 0.005) {
+    std::cout << "Error too high: " << constraints.error.norm()
+              << ", tf_m_to_q: "
+              << constraints.tf_m_to_q.translation().transpose() << "\n";
     return false;
   }
 
@@ -147,9 +160,11 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   const planning_scene::PlanningSceneConstPtr ps(*planning_scene);
   ps->getCollidingPairs(contacts, *kinematic_state_);
   if (contacts.size() > 0) {
+    std::cout << "Collision\n";
     return false;
   }
 
+  std::cout << "Constraints passed!\n";
   return true;
 }
 

@@ -70,9 +70,8 @@ class DSSPlanner {
  protected:
   ompl::base::StateSpacePtr state_space_;
   ompl::geometric::SimpleSetupPtr ss_;
-  affordance_primitives::ScrewAxis screw_axis_;
-  Eigen::Isometry3d goal_pose_;
-  Eigen::Isometry3d start_pose_;
+  Eigen::Isometry3d start_pose_, goal_pose_;
+  affordance_primitives::ScrewConstraintInfo screw_constraints_;
   moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   std::shared_ptr<moveit::core::JointModelGroup> joint_model_group_;
@@ -86,8 +85,7 @@ class DSSPlanner {
   void cleanUp();
 
   bool setupStateSpace(const APPlanningRequest& req);
-  affordance_primitives::TransformStamped getStartTF(
-      const APPlanningRequest& req);
+  void getStartTF(const APPlanningRequest& req);
   bool setSpaceParameters(const APPlanningRequest& req,
                           ompl::base::StateSpacePtr& space);
   bool setSimpleSetup(const ompl::base::StateSpacePtr& space,

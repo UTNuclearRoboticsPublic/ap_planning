@@ -40,6 +40,7 @@
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 #include <tf2_eigen/tf2_eigen.h>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
+#include <affordance_primitives/screw_planning/screw_planning.hpp>
 
 namespace ob = ompl::base;
 
@@ -90,7 +91,8 @@ class ScrewValidSampler : public ob::ValidStateSampler {
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
   kinematics::KinematicsBasePtr ik_solver_;
-  affordance_primitives::ScrewAxis screw_axis_;
+  std::vector<affordance_primitives::ScrewAxis> screw_axes_;
+  affordance_primitives::ScrewConstraintInfo screw_constraints_;
   Eigen::Isometry3d start_pose_;
 };
 
@@ -126,7 +128,9 @@ class ScrewSampler : public ob::StateSampler {
   moveit::core::JointModelGroupPtr joint_model_group_;
   kinematics::KinematicsBasePtr ik_solver_;
   ob::RealVectorBounds screw_bounds_;
-  affordance_primitives::ScrewAxis screw_axis_;
+  std::vector<affordance_primitives::ScrewAxis> screw_axes_;
+  affordance_primitives::ScrewConstraintInfo screw_constraints_;
+  double lambda_max_;
   Eigen::Isometry3d start_pose_;
 };
 

@@ -1,5 +1,5 @@
 <launch>
-  <arg name="num_sampling" default="0" />
+  <arg name="num_sampling" default="1" />
   <arg name="num_sps" default="1" />
   <arg name="show_trajectories" default="true" />
   <arg name="add_collision_objects" default="true" />

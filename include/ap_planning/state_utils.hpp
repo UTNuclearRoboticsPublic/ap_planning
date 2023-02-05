@@ -75,20 +75,20 @@ class ScrewParam : public ob::GenericParam {
   ScrewParam(std::string name) : GenericParam(name) {}
 
   std::string getValue() const override {
-    return affordance_primitives::screwMsgToStr(screw_msg_);
+    return affordance_primitives::screwMsgVectorToStr(screw_msgs_);
   }
 
   bool setValue(const std::string &value) {
-    auto decoded = affordance_primitives::strToScrewMsg(value);
-    if (decoded) {
-      screw_msg_ = *decoded;
+    auto decoded = affordance_primitives::strToScrewMsgVector(value);
+    if (decoded.size() > 0) {
+      screw_msgs_ = decoded;
       return true;
     }
     return false;
   }
 
  protected:
-  affordance_primitive_msgs::ScrewStamped screw_msg_;
+  std::vector<affordance_primitive_msgs::ScrewStamped> screw_msgs_;
 };
 
 /**
@@ -176,7 +176,7 @@ class ScrewValidityChecker : public ob::StateValidityChecker {
   ob::RealVectorBounds screw_bounds_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
-  affordance_primitives::ScrewAxis screw_axis_;
+  std::vector<affordance_primitives::ScrewAxis> screw_axes_;
   Eigen::Isometry3d start_pose_;
   std::string ee_frame_name_;
 };
