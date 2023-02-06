@@ -275,12 +275,14 @@ bool DSSPlanner::findStartGoalStates(
 
     // Try to add a start configuration
     if (start_configs.size() < num_start) {
-      increaseStateList(start_pose_msg, start_configs);
+      increaseStateList(joint_model_group_, kinematic_state_, *planning_scene_,
+                        ik_solver_, start_pose_msg, start_configs);
     }
 
     // Try to add a goal configuration
     if (goal_configs.size() < num_goal) {
-      increaseStateList(goal_pose_msg, goal_configs);
+      increaseStateList(joint_model_group_, kinematic_state_, *planning_scene_,
+                        ik_solver_, goal_pose_msg, goal_configs);
     }
   }
 
@@ -308,7 +310,8 @@ bool DSSPlanner::findGoalStates(
   size_t i = 0;
   while (goal_configs.size() < num_goal && i < 2 * num_goal) {
     // Try to add a goal configuration
-    increaseStateList(goal_pose_msg, goal_configs);
+    increaseStateList(joint_model_group_, kinematic_state_, *planning_scene_,
+                      ik_solver_, goal_pose_msg, goal_configs);
 
     // Every time, we set to random states to get variety in solutions
     kinematic_state_->setToRandomPositions(joint_model_group_.get());
@@ -318,33 +321,34 @@ bool DSSPlanner::findGoalStates(
   return goal_configs.size() > 0;
 }
 
-void DSSPlanner::increaseStateList(
-    const affordance_primitives::Pose& pose,
-    std::vector<std::vector<double>>& state_list) {
-  // Set up IK callback
-  kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
-      [this](const geometry_msgs::Pose& pose, const std::vector<double>& joints,
-             moveit_msgs::MoveItErrorCodes& error_code) {
-        ikCallbackFnAdapter(joint_model_group_, kinematic_state_,
-                            *planning_scene_, joints, error_code);
-      };
+// void DSSPlanner::increaseStateList(
+//     const affordance_primitives::Pose& pose,
+//     std::vector<std::vector<double>>& state_list) {
+//   // Set up IK callback
+//   kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
+//       [this](const geometry_msgs::Pose& pose, const std::vector<double>&
+//       joints,
+//              moveit_msgs::MoveItErrorCodes& error_code) {
+//         ikCallbackFnAdapter(joint_model_group_, kinematic_state_,
+//                             *planning_scene_, joints, error_code);
+//       };
 
-  // Try to solve the IK
-  std::vector<double> seed_state, ik_solution;
-  moveit_msgs::MoveItErrorCodes err;
-  kinematics::KinematicsQueryOptions opts;
-  kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
-                                            seed_state);
-  if (!ik_solver_->searchPositionIK(pose, seed_state, 0.05, ik_solution,
-                                    ik_callback_fn, err, opts)) {
-    return;
-  }
+//   // Try to solve the IK
+//   std::vector<double> seed_state, ik_solution;
+//   moveit_msgs::MoveItErrorCodes err;
+//   kinematics::KinematicsQueryOptions opts;
+//   kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
+//                                             seed_state);
+//   if (!ik_solver_->searchPositionIK(pose, seed_state, 0.05, ik_solution,
+//                                     ik_callback_fn, err, opts)) {
+//     return;
+//   }
 
-  // If the solution is valid, add it to the list
-  if (checkDuplicateState(state_list, ik_solution)) {
-    state_list.push_back(ik_solution);
-  }
-}
+//   // If the solution is valid, add it to the list
+//   if (checkDuplicateState(state_list, ik_solution)) {
+//     state_list.push_back(ik_solution);
+//   }
+// }
 
 void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
                                   const APPlanningRequest& req,

@@ -118,15 +118,6 @@ class DSSPlanner {
                       std::vector<std::vector<double>>& start_configs,
                       std::vector<std::vector<double>>& goal_configs);
 
-  /** Solves IK for a state and adds it to a list of valid states
-   *
-   * @param pose IK Pose
-   * @param state_list Valid poses, this wil expand if the found solution is
-   * sufficiently far from the other states in the list
-   */
-  void increaseStateList(const affordance_primitives::Pose& pose,
-                         std::vector<std::vector<double>>& state_list);
-
   /** Given a solution path, this will fill in the planning response
    *
    * Note: it will interpolate the path, with may invalidate an otherwise valid

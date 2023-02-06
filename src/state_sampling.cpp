@@ -1,5 +1,6 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <ap_planning/state_sampling.hpp>
+#include <ap_planning/state_utils.hpp>
 
 namespace ap_planning {
 
@@ -23,6 +24,36 @@ bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
     error_code.val = moveit_msgs::MoveItErrorCodes::NO_IK_SOLUTION;
   }
   return true;
+}
+
+void increaseStateList(const moveit::core::JointModelGroupPtr jmg,
+                       const moveit::core::RobotStatePtr robot_state,
+                       const planning_scene_monitor::LockedPlanningSceneRO ps,
+                       const kinematics::KinematicsBasePtr ik_solver,
+                       const affordance_primitives::Pose &pose,
+                       std::vector<std::vector<double>> &state_list) {
+  // Set up IK callback
+  kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
+      [&jmg, &robot_state, &ps](const geometry_msgs::Pose &pose,
+                                const std::vector<double> &joints,
+                                moveit_msgs::MoveItErrorCodes &error_code) {
+        ikCallbackFnAdapter(jmg, robot_state, ps, joints, error_code);
+      };
+
+  // Try to solve the IK
+  std::vector<double> seed_state, ik_solution;
+  moveit_msgs::MoveItErrorCodes err;
+  kinematics::KinematicsQueryOptions opts;
+  robot_state->copyJointGroupPositions(jmg.get(), seed_state);
+  if (!ik_solver->searchPositionIK(pose, seed_state, 0.05, ik_solution,
+                                   ik_callback_fn, err, opts)) {
+    return;
+  }
+
+  // If the solution is valid, add it to the list
+  if (checkDuplicateState(state_list, ik_solution)) {
+    state_list.push_back(ik_solution);
+  }
 }
 
 ScrewValidSampler::ScrewValidSampler(const ob::SpaceInformation *si)

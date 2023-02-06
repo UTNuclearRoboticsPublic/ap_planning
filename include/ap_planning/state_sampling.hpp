@@ -46,7 +46,7 @@ namespace ob = ompl::base;
 
 namespace ap_planning {
 
-/** Contains all the functionality for using collision checking during Ik
+/** Contains all the functionality for using collision checking during IK
  *
  * @param jmg The joint model group
  * @param robot_state The robot state object
@@ -59,6 +59,24 @@ bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
                          const planning_scene_monitor::LockedPlanningSceneRO ps,
                          const std::vector<double> &joints,
                          moveit_msgs::MoveItErrorCodes &error_code);
+
+/** Solves IK for a state and adds it to a list of valid states
+ *
+ * @param jmg The joint model group
+ * @param robot_state The robot state object. Current joint vals used as seed
+ * state
+ * @param psm The planning scene monitor to check against
+ * @param ik_solver IK Solver to use
+ * @param pose IK Pose
+ * @param state_list Valid poses, this wil expand if the found solution is
+ * sufficiently far from the other states in the list
+ */
+void increaseStateList(const moveit::core::JointModelGroupPtr jmg,
+                       const moveit::core::RobotStatePtr robot_state,
+                       const planning_scene_monitor::LockedPlanningSceneRO ps,
+                       const kinematics::KinematicsBasePtr ik_solver,
+                       const affordance_primitives::Pose &pose,
+                       std::vector<std::vector<double>> &state_list);
 
 ob::ValidStateSamplerPtr allocScrewValidSampler(const ob::SpaceInformation *si);
 
