@@ -270,7 +270,7 @@ bool DSSPlanner::findStartGoalStates(
   while ((start_configs.size() < num_start || goal_configs.size() < num_goal) &&
          i < 2 * (num_goal + num_start)) {
     // Every time, we set to random states to get variety in solutions
-    kinematic_state_->setToRandomPositions();
+    kinematic_state_->setToRandomPositions(joint_model_group_.get());
     i++;
 
     // Try to add a start configuration
@@ -311,7 +311,7 @@ bool DSSPlanner::findGoalStates(
     increaseStateList(goal_pose_msg, goal_configs);
 
     // Every time, we set to random states to get variety in solutions
-    kinematic_state_->setToRandomPositions();
+    kinematic_state_->setToRandomPositions(joint_model_group_.get());
     i++;
   }
 

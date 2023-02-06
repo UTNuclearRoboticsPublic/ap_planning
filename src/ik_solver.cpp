@@ -287,7 +287,7 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     trajectory_msgs::JointTrajectoryPoint point;
     bool found_start_config = false;
     for (size_t i = 0; i < 5; ++i) {
-      current_state->setToRandomPositions();
+      current_state->setToRandomPositions(joint_model_group_);
       if (solveIK(joint_model_group_, first_pose, req.ee_frame_name,
                   *current_state, point)) {
         found_start_config = true;
