@@ -1,6 +1,5 @@
 #include <bio_ik/bio_ik.h>
 #include <affordance_primitives/screw_model/screw_execution.hpp>
-#include <affordance_primitives/screw_planning/screw_planning.hpp>
 #include <ap_planning/ik_solver.hpp>
 
 #include <pluginlib/class_list_macros.h>

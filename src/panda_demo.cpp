@@ -26,7 +26,6 @@
 #include <tf2_eigen/tf2_eigen.h>
 #include <affordance_primitives/screw_model/affordance_utils.hpp>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
-#include <affordance_primitives/screw_planning/screw_planning.hpp>
 #include <ap_planning/ap_planning.hpp>
 
 namespace ob = ompl::base;
