@@ -25,7 +25,7 @@
 #include <tf2_eigen/tf2_eigen.h>
 #include <affordance_primitives/screw_model/affordance_utils.hpp>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
-#include <affordance_primitives/screw_planning/screw_planning.hpp>
+#include <affordance_primitives/screw_planning/chained_screws.hpp>
 #include <ap_planning/ap_planning.hpp>
 
 #include <ros/console.h>
@@ -33,17 +33,18 @@
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
-void show_multi_screw(const std::vector<ap_planning::ScrewSegment> &screws,
-                      const geometry_msgs::Pose &start_pose,
+void show_multi_screw(const ap_planning::APPlanningRequest &req,
                       moveit_visual_tools::MoveItVisualTools &visual_tools) {
   visual_tools.deleteAllMarkers();
   visual_tools.trigger();
-  Eigen::Isometry3d tf_m_to_s = Eigen::Isometry3d::Identity();
-  tf2::fromMsg(start_pose, tf_m_to_s);
-  visual_tools.publishAxis(tf_m_to_s);
+
+  // Get constraint
+  auto constraint = req.toConstraint();
+
+  visual_tools.publishAxis(constraint.referenceFrame());
 
   // Plot each screw
-  const auto viz_screws = ap_planning::getScrewVisuals(screws, tf_m_to_s);
+  const auto viz_screws = constraint.getVisualScrews();
   for (const auto &screw : viz_screws) {
     // Create points for plotting
     Eigen::Vector3d origin, axis;
@@ -382,7 +383,7 @@ int main(int argc, char **argv) {
       collision_obj_exists = true;
     }
 
-    show_multi_screw(req.screw_path, req.start_pose.pose, visual_tools);
+    show_multi_screw(req, visual_tools);
 
     for (size_t i = 0; i < num_sample; ++i) {
       std::cout << "Starting i = " << i << "\n";

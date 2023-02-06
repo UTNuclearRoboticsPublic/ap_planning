@@ -26,7 +26,7 @@ bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
 }
 
 ScrewValidSampler::ScrewValidSampler(const ob::SpaceInformation *si)
-    : ValidStateSampler(si), screw_bounds_(1) {
+    : ValidStateSampler(si) {
   name_ = "screw_valid_sampler";
 
   // Get move group parameters
@@ -42,36 +42,6 @@ ScrewValidSampler::ScrewValidSampler(const ob::SpaceInformation *si)
       *kinematic_model->getJointModelGroup(mg_string));
 
   ik_solver_ = joint_model_group_->getSolverInstance();
-
-  std::string screw_msg_string, pose_msg_string;
-  si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
-  si->getStateSpace()->params().getParam("pose_param", pose_msg_string);
-  tf2::fromMsg(affordance_primitives::strToPose(pose_msg_string)->pose,
-               start_pose_);
-
-  const auto screw_msgs =
-      affordance_primitives::strToScrewMsgVector(screw_msg_string);
-  screw_axes_.reserve(screw_msgs.size());
-  for (const auto &msg : screw_msgs) {
-    affordance_primitives::ScrewAxis axis;
-    axis.setScrewAxis(msg);
-    screw_axes_.push_back(axis);
-  }
-
-  ob::CompoundStateSpace *compound_space =
-      si_->getStateSpace()->as<ob::CompoundStateSpace>();
-  screw_bounds_ = compound_space->getSubspace(0)
-                      ->as<ob::RealVectorStateSpace>()
-                      ->getBounds();
-
-  screw_constraints_.screw_axis_set = screw_axes_;
-  screw_constraints_.phi_bounds.first.resize(screw_axes_.size());
-  screw_constraints_.phi_bounds.second.resize(screw_axes_.size());
-
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    screw_constraints_.phi_bounds.first(i) = screw_bounds_.low[i];
-    screw_constraints_.phi_bounds.second(i) = screw_bounds_.high[i];
-  }
 }
 
 bool ScrewValidSampler::sample(ob::State *state) {
@@ -83,18 +53,13 @@ bool ScrewValidSampler::sample(ob::State *state) {
       *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
 
   // Draw a random screw state within bounds
-  Eigen::VectorXd phi(screw_axes_.size());
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    screw_state[i] =
-        rng_.uniformReal(screw_bounds_.low[i], screw_bounds_.high[i]);
-    phi(i) = screw_state[i];
+  auto sampled_state = constraints->sampleUniformState();
+  for (size_t i = 0; i < sampled_state.size(); ++i) {
+    screw_state[i] = sampled_state[i];
   }
 
   // Get the pose of this theta
-  // TODO: multiple screw axis?
-  Eigen::Isometry3d current_pose =
-      affordance_primitives::getPoseOnPath(screw_constraints_, phi);
-  // screw_axis_.getTF(screw_state[0]) * start_pose_;
+  Eigen::Isometry3d current_pose = constraints->getPose(sampled_state);
   geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
   // Set up IK callback
@@ -135,7 +100,7 @@ ob::ValidStateSamplerPtr allocScrewValidSampler(
 }
 
 ScrewSampler::ScrewSampler(const ob::StateSpace *state_space)
-    : StateSampler(state_space), screw_bounds_(state_space->getDimension()) {
+    : StateSampler(state_space) {
   // Get move group parameters
   std::string mg_string;
   state_space->params().getParam("move_group", mg_string);
@@ -148,37 +113,6 @@ ScrewSampler::ScrewSampler(const ob::StateSpace *state_space)
       *kinematic_model->getJointModelGroup(mg_string));
 
   ik_solver_ = joint_model_group_->getSolverInstance();
-
-  auto compound_space = state_space->as<ob::CompoundStateSpace>();
-  screw_bounds_ = compound_space->getSubspace(0)
-                      ->as<ob::RealVectorStateSpace>()
-                      ->getBounds();
-
-  std::string screw_msg_string, pose_msg_string;
-  state_space->params().getParam("screw_param", screw_msg_string);
-  state_space->params().getParam("pose_param", pose_msg_string);
-  tf2::fromMsg(affordance_primitives::strToPose(pose_msg_string)->pose,
-               start_pose_);
-
-  const auto screw_msgs =
-      affordance_primitives::strToScrewMsgVector(screw_msg_string);
-  screw_axes_.reserve(screw_msgs.size());
-  for (const auto &msg : screw_msgs) {
-    affordance_primitives::ScrewAxis axis;
-    axis.setScrewAxis(msg);
-    screw_axes_.push_back(axis);
-  }
-
-  screw_constraints_.screw_axis_set = screw_axes_;
-  screw_constraints_.phi_bounds.first.resize(screw_axes_.size());
-  screw_constraints_.phi_bounds.second.resize(screw_axes_.size());
-
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    screw_constraints_.phi_bounds.first(i) = screw_bounds_.low[i];
-    screw_constraints_.phi_bounds.second(i) = screw_bounds_.high[i];
-  }
-  lambda_max_ = affordance_primitives::getLambda(
-      screw_constraints_.phi_bounds.second, screw_constraints_.phi_bounds);
 }
 
 void ScrewSampler::sample(ob::State *state,
@@ -191,16 +125,12 @@ void ScrewSampler::sample(ob::State *state,
       *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
 
   // Set the screw state from input
-  Eigen::VectorXd phi(screw_axes_.size());
   for (size_t i = 0; i < screw_theta.size(); ++i) {
     screw_state[i] = screw_theta[i];
-    phi(i) = screw_state[i];
   }
 
   // Get the pose of this theta
-  // TODO: multiple screw axis?
-  Eigen::Isometry3d current_pose =
-      affordance_primitives::getPoseOnPath(screw_constraints_, phi);
+  Eigen::Isometry3d current_pose = constraints->getPose(screw_theta);
   geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
   // Set up IK callback
@@ -235,20 +165,7 @@ void ScrewSampler::sample(ob::State *state,
 }
 
 void ScrewSampler::sampleUniform(ob::State *state) {
-  std::vector<double> screw_theta;
-  screw_theta.reserve(screw_bounds_.low.size());
-
-  // Draw a random sample along the chain
-  double lambda = rng_.uniformReal(0, lambda_max_);
-
-  auto phi =
-      affordance_primitives::getPhi(lambda, screw_constraints_.phi_bounds);
-
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    screw_theta.push_back(phi(i));
-  }
-
-  sample(state, screw_theta);
+  sample(state, constraints->sampleUniformState());
 }
 
 void ScrewSampler::sampleUniformNear(ob::State *state, const ob::State *near,
@@ -258,31 +175,13 @@ void ScrewSampler::sampleUniformNear(ob::State *state, const ob::State *near,
   const ob::RealVectorStateSpace::StateType &screw_state =
       *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
 
-  // Calculate the lambda of the near state
-  Eigen::VectorXd phi(screw_bounds_.low.size());
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    phi(i) = screw_state[i];
-  }
-  const double lambda_near =
-      affordance_primitives::getLambda(phi, screw_constraints_.phi_bounds);
-
-  // Sample near it
-  double lambda =
-      lambda_near + rng_.uniformReal(-0.5 * distance, 0.5 * distance);
-
-  // Enforce the bounds
-  lambda = std::clamp(lambda, 0.0, lambda_max_);
-
-  // Put back into phi-form
-  phi = affordance_primitives::getPhi(lambda, screw_constraints_.phi_bounds);
-
-  std::vector<double> screw_theta;
-  screw_theta.reserve(screw_bounds_.low.size());
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    screw_theta[i] = phi(i);
+  // Extract the state
+  std::vector<double> screw_theta(constraints->size());
+  for (size_t i = 0; i < constraints->size(); ++i) {
+    screw_theta[i] = screw_state[i];
   }
 
-  sample(state, screw_theta);
+  sample(state, constraints->sampleUniformStateNear(screw_theta, distance));
 }
 
 void ScrewSampler::sampleGaussian(ob::State *state, const ob::State *mean,
@@ -292,30 +191,13 @@ void ScrewSampler::sampleGaussian(ob::State *state, const ob::State *mean,
   const ob::RealVectorStateSpace::StateType &screw_state =
       *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
 
-  // Calculate the lambda of the near state
-  Eigen::VectorXd phi(screw_bounds_.low.size());
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    phi(i) = screw_state[i];
-  }
-  const double lambda_near =
-      affordance_primitives::getLambda(phi, screw_constraints_.phi_bounds);
-
-  // Sample near it
-  double lambda = rng_.gaussian(lambda_near, stdDev);
-
-  // Enforce the bounds
-  lambda = std::clamp(lambda, 0.0, lambda_max_);
-
-  // Put back into phi-form
-  phi = affordance_primitives::getPhi(lambda, screw_constraints_.phi_bounds);
-
-  std::vector<double> screw_theta;
-  screw_theta.reserve(screw_bounds_.low.size());
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    screw_theta[i] = phi(i);
+  // Extract the state
+  std::vector<double> screw_theta(constraints->size());
+  for (size_t i = 0; i < constraints->size(); ++i) {
+    screw_theta[i] = screw_state[i];
   }
 
-  sample(state, screw_theta);
+  sample(state, constraints->sampleGaussianStateNear(screw_theta, stdDev));
 }
 
 ob::StateSamplerPtr allocScrewSampler(const ob::StateSpace *state_space) {

@@ -37,6 +37,7 @@
 #include <ompl/geometric/planners/prm/PRMstar.h>
 #include <ompl/geometric/planners/rrt/RRT.h>
 #include <ompl/geometric/planners/rrt/RRTConnect.h>
+#include <affordance_primitives/screw_planning/screw_constraint.hpp>
 #include <ap_planning/ap_planning_common.hpp>
 #include <ap_planning/state_sampling.hpp>
 #include <ap_planning/state_utils.hpp>
@@ -71,7 +72,7 @@ class DSSPlanner {
   ompl::base::StateSpacePtr state_space_;
   ompl::geometric::SimpleSetupPtr ss_;
   Eigen::Isometry3d start_pose_, goal_pose_;
-  affordance_primitives::ScrewConstraintInfo screw_constraints_;
+  std::shared_ptr<affordance_primitives::ScrewConstraint> constraints_;
   moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   std::shared_ptr<moveit::core::JointModelGroup> joint_model_group_;

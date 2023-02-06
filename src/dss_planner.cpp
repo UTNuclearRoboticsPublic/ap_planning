@@ -49,6 +49,9 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
   ScrewValidSampler::planning_scene = planning_scene_;
   ScrewValidityChecker::planning_scene = planning_scene_;
 
+  // TODO make general for non-chained case
+  constraints_ = std::make_shared<affordance_primitives::ChainedScrews>();
+
   // Set up the state space for this plan
   if (!setupStateSpace(req)) {
     cleanUp();
@@ -71,6 +74,11 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
     return INITIALIZATION_FAIL;
   }
 
+  // Set constraints for classes that will need it
+  ScrewSampler::constraints = constraints_;
+  ScrewValidSampler::constraints = constraints_;
+  ScrewValidityChecker::constraints = constraints_;
+
   // Create start and goal states
   std::vector<std::vector<double>> start_configs, goal_configs;
   if (passed_start_config_) {
@@ -87,24 +95,15 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
 
   // Set the start states
   for (const auto& start_state : start_configs) {
-    std::vector<double> start_phi;
-    start_phi.reserve(screw_constraints_.screw_axis_set.size());
-    for (size_t i = 0; i < screw_constraints_.phi_bounds.first.size(); ++i) {
-      start_phi.push_back(screw_constraints_.phi_bounds.first(i));
-    }
-    ss_->addStartState(vectorToState(state_space_, start_phi, start_state));
+    ss_->addStartState(
+        vectorToState(state_space_, constraints_->lowerBounds(), start_state));
   }
 
   // Create and populate the goal object
   auto goal_obj = std::make_shared<ScrewGoal>(ss_->getSpaceInformation());
   for (const auto& goal_state : goal_configs) {
-    // TODO handle multi-screw
-    std::vector<double> end_phi;
-    end_phi.reserve(screw_constraints_.screw_axis_set.size());
-    for (size_t i = 0; i < screw_constraints_.phi_bounds.second.size(); ++i) {
-      end_phi.push_back(screw_constraints_.phi_bounds.second(i));
-    }
-    goal_obj->addState(vectorToState(state_space_, end_phi, goal_state));
+    goal_obj->addState(
+        vectorToState(state_space_, constraints_->upperBounds(), goal_state));
   }
   ss_->setGoal(goal_obj);
 
@@ -126,6 +125,9 @@ void DSSPlanner::cleanUp() {
   ScrewSampler::planning_scene.reset();
   ScrewValidSampler::planning_scene.reset();
   ScrewValidityChecker::planning_scene.reset();
+  ScrewSampler::constraints.reset();
+  ScrewValidSampler::constraints.reset();
+  ScrewValidityChecker::constraints.reset();
 }
 
 bool DSSPlanner::setupStateSpace(const APPlanningRequest& req) {
@@ -135,12 +137,15 @@ bool DSSPlanner::setupStateSpace(const APPlanningRequest& req) {
   auto screw_space = std::make_shared<ob::RealVectorStateSpace>();
   auto joint_space = std::make_shared<ob::RealVectorStateSpace>();
 
+  size_t i = 0;
   // Add screw dimensions
   for (const auto& segment : req.screw_path) {
     if (segment.start_theta > segment.end_theta) {
       return false;
     }
     screw_space->addDimension(segment.start_theta, segment.end_theta);
+    constraints_->addScrewAxis(segment.screw_msg, segment.start_theta,
+                               segment.end_theta);
   }
 
   // Go through joint group and add bounds for each joint
@@ -173,41 +178,10 @@ bool DSSPlanner::setupStateSpace(const APPlanningRequest& req) {
 bool DSSPlanner::setSpaceParameters(const APPlanningRequest& req,
                                     ompl::base::StateSpacePtr& space) {
   // Handle the starting transformation
-  screw_constraints_ = getConstraintInfo(req);
   getStartTF(req);
 
   // Solve the goal pose
-  auto phi_goal = screw_constraints_.phi_bounds.second;
-  goal_pose_ =
-      affordance_primitives::getPoseOnPath(screw_constraints_, phi_goal);
-
-  // Set the screw axis from transformed screw
-  // screw_axis_.setScrewAxis(req.screw_path.at(0).screw_msg);
-  // TODO handle multi-screw
-
-  // Calculate the goal pose and set
-  // TODO handle multi-screw
-  // goal_pose_ = screw_axis_.getTF(req.screw_path.at(0).end_theta) *
-  //              tf2::transformToEigen(tf_msg);
-
-  // Extract the vector of screw messages
-  std::vector<affordance_primitive_msgs::ScrewStamped> screw_msgs;
-  screw_msgs.reserve(req.screw_path.size());
-  for (const auto& segment : req.screw_path) {
-    screw_msgs.push_back(segment.screw_msg);
-  }
-
-  // Add screw param (from starting pose screw)
-  auto screw_param = std::make_shared<ap_planning::ScrewParam>("screw_param");
-  screw_param->setValue(affordance_primitives::screwMsgVectorToStr(screw_msgs));
-  space->params().add(screw_param);
-
-  // Add starting pose
-  auto pose_param = std::make_shared<ap_planning::PoseParam>("pose_param");
-  auto pose_msg = req.start_pose;
-  pose_msg.pose = tf2::toMsg(start_pose_);
-  pose_param->setValue(affordance_primitives::poseToStr(pose_msg));
-  space->params().add(pose_param);
+  goal_pose_ = constraints_->getPose(constraints_->upperBounds());
 
   // Add EE frame name and move group parameters
   auto ee_name_param =
@@ -231,11 +205,15 @@ void DSSPlanner::getStartTF(const APPlanningRequest& req) {
     kinematic_state_->update(true);
     start_pose_ = kinematic_state_->getFrameTransform(req.ee_frame_name);
     passed_start_config_ = true;
+    constraints_->setReferenceFrame(start_pose_);
   } else {
+    // Set pose directly
+    Eigen::Isometry3d tf_m_to_s;
+    tf2::fromMsg(req.start_pose.pose, tf_m_to_s);
+    constraints_->setReferenceFrame(tf_m_to_s);
+
     // Solve start pose manually
-    auto phi_start = screw_constraints_.phi_bounds.first;
-    start_pose_ =
-        affordance_primitives::getPoseOnPath(screw_constraints_, phi_start);
+    start_pose_ = constraints_->getPose(constraints_->lowerBounds());
     passed_start_config_ = false;
   }
 }
@@ -384,8 +362,9 @@ void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
   const size_t num_joints = res.joint_trajectory.joint_names.size();
   res.joint_trajectory.points.reserve(solution.getStateCount());
 
-  double lambda_max = affordance_primitives::getLambda(
-      screw_constraints_.phi_bounds.second, screw_constraints_.phi_bounds);
+  // TODO make general for non-chained case
+  affordance_primitives::ChainedScrews& chained_cons =
+      dynamic_cast<affordance_primitives::ChainedScrews&>(*constraints_);
 
   // Go through each point and check it for validity
   for (const auto& state : solution.getStates()) {
@@ -403,14 +382,13 @@ void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
       res.trajectory_is_valid = false;
 
       // Calculate the percent through the trajectory we made it
-      Eigen::VectorXd phi(screw_constraints_.screw_axis_set.size());
-      for (size_t i = 0; i < screw_constraints_.screw_axis_set.size(); ++i) {
-        phi(i) = screw_state[i];
+      std::vector<double> phi(constraints_->size());
+      for (size_t i = 0; i < constraints_->size(); ++i) {
+        phi[i] = screw_state[i];
       }
-      const double lambda =
-          affordance_primitives::getLambda(phi, screw_constraints_.phi_bounds);
+      const double lambda = chained_cons.getLambda(phi);
 
-      res.percentage_complete = lambda / lambda_max;
+      res.percentage_complete = lambda / chained_cons.lambdaMax();
       return;
     }
 
@@ -430,15 +408,20 @@ void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
       *solution.getStates().back()->as<ob::CompoundStateSpace::StateType>();
   const ob::RealVectorStateSpace::StateType& screw_state =
       *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
-  // TODO handle multi-screw
-  const double err = fabs(req.screw_path.at(0).end_theta - screw_state[0]);
+
+  std::vector<double> phi(constraints_->size());
+  for (size_t i = 0; i < constraints_->size(); ++i) {
+    phi[i] = screw_state[i];
+  }
+
+  const double lambda = chained_cons.getLambda(phi);
+  const double err = chained_cons.lambdaMax() - lambda;
   if (err > 0.01) {
     res.trajectory_is_valid = false;
   } else {
     res.trajectory_is_valid = true;
   }
-  // TODO handle multi-screw
-  res.percentage_complete = screw_state[0] / req.screw_path.at(0).end_theta;
+  res.percentage_complete = lambda / chained_cons.lambdaMax();
   res.path_length = solution.length();
 }
 }  // namespace ap_planning

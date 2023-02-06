@@ -35,7 +35,7 @@
 #include <affordance_primitive_msgs/ScrewStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <trajectory_msgs/JointTrajectory.h>
-#include <affordance_primitives/screw_planning/screw_planning.hpp>
+#include <affordance_primitives/screw_planning/chained_screws.hpp>
 
 #include <string>
 #include <vector>
@@ -97,6 +97,12 @@ struct APPlanningRequest {
   // Only set one of these
   std::vector<double> start_joint_state;
   geometry_msgs::PoseStamped start_pose;
+
+  /** Converts the request to a Constraint object
+   *
+   * TODO: make this generic, not just for derived Chained case
+   */
+  affordance_primitives::ChainedScrews toConstraint() const;
 };
 
 /**
@@ -108,22 +114,4 @@ struct APPlanningResponse {
   bool trajectory_is_valid;
   double path_length;
 };
-
-/** Returns a set of screw axis that more intuitively show the screw path. All
- * screws are in the affordance frame, but are translated/rotated to visually
- * appear chained how they should be
- *
- * @param path The screw path, with all screws passed in the affordance frame
- * and defined at phi = 0
- * @param tf_m_to_s The reference "starting" pose
- * @return Screws returned in the affordance, but at their respective phi values
- */
-std::vector<affordance_primitive_msgs::ScrewStamped> getScrewVisuals(
-    const std::vector<ScrewSegment>& path, const Eigen::Isometry3d& tf_m_to_s);
-
-/** Converts a planning request to a screw-constraint object
- */
-affordance_primitives::ScrewConstraintInfo getConstraintInfo(
-    const APPlanningRequest& req);
-
 }  // namespace ap_planning

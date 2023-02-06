@@ -58,7 +58,7 @@ double ScrewGoal::distanceGoal(const ob::State *state) const {
 }
 
 ScrewValidityChecker::ScrewValidityChecker(const ob::SpaceInformationPtr &si)
-    : ob::StateValidityChecker(si), robot_bounds_(1), screw_bounds_(1) {
+    : ob::StateValidityChecker(si), robot_bounds_(1) {
   // Get move group parameter
   std::string mg_string;
   si->getStateSpace()->params().getParam("move_group", mg_string);
@@ -71,26 +71,8 @@ ScrewValidityChecker::ScrewValidityChecker(const ob::SpaceInformationPtr &si)
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
       *kinematic_model->getJointModelGroup(mg_string));
 
-  std::string screw_msg_string, pose_msg_string;
-  si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
-  si->getStateSpace()->params().getParam("pose_param", pose_msg_string);
-  tf2::fromMsg(affordance_primitives::strToPose(pose_msg_string)->pose,
-               start_pose_);
-
-  const auto screw_msgs =
-      affordance_primitives::strToScrewMsgVector(screw_msg_string);
-  screw_axes_.reserve(screw_msgs.size());
-  for (const auto &msg : screw_msgs) {
-    affordance_primitives::ScrewAxis axis;
-    axis.setScrewAxis(msg);
-    screw_axes_.push_back(axis);
-  }
-
   ob::CompoundStateSpace *compound_space =
       si_->getStateSpace()->as<ob::CompoundStateSpace>();
-  screw_bounds_ = compound_space->getSubspace(0)
-                      ->as<ob::RealVectorStateSpace>()
-                      ->getBounds();
   robot_bounds_ = compound_space->getSubspace(1)
                       ->as<ob::RealVectorStateSpace>()
                       ->getBounds();
@@ -105,10 +87,9 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
       *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
 
   // Check screw bounds
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    if (screw_state[i] > screw_bounds_.high[i] ||
-        screw_state[i] < screw_bounds_.low[i]) {
-      std::cout << "Screw bounds\n";
+  for (size_t i = 0; i < constraints->size(); ++i) {
+    if (screw_state[i] > constraints->upperBounds()[i] ||
+        screw_state[i] < constraints->lowerBounds()[i]) {
       return false;
     }
   }
@@ -118,7 +99,6 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   for (size_t i = 0; i < robot_bounds_.low.size(); ++i) {
     if (robot_state[i] > robot_bounds_.high[i] ||
         robot_state[i] < robot_bounds_.low[i]) {
-      std::cout << "Robot bounds\n";
       return false;
     }
     joint_state[i] = robot_state[i];
@@ -130,28 +110,13 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   kinematic_state_->update(true);
   auto this_state_pose = kinematic_state_->getFrameTransform(ee_frame_name_);
 
-  // Initialize struct for constraintFn
-  affordance_primitives::ScrewConstraintInfo constraints;
-  constraints.phi_bounds.first.resize(screw_bounds_.low.size());
-  constraints.phi_bounds.second.resize(screw_bounds_.high.size());
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    constraints.phi_bounds.first(i) = screw_bounds_.low.at(i);
-    constraints.phi_bounds.second(i) = screw_bounds_.high.at(i);
-  }
-  constraints.tf_m_to_s = start_pose_;
-  constraints.tf_m_to_q = this_state_pose;
-  constraints.screw_axis_set = screw_axes_;
-
   // Call constraintFn
-  if (!affordance_primitives::chainedConstraintFn(constraints)) {
-    std::cout << "CONSTRAINTS FAILED\n";
+  affordance_primitives::ScrewConstraintSolution sol;
+  if (!constraints->constraintFn(this_state_pose, joint_state, sol)) {
     return false;
   }
 
-  if (constraints.error.norm() > 0.005) {
-    std::cout << "Error too high: " << constraints.error.norm()
-              << ", tf_m_to_q: "
-              << constraints.tf_m_to_q.translation().transpose() << "\n";
+  if (sol.error > 0.005) {
     return false;
   }
 
@@ -160,11 +125,9 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   const planning_scene::PlanningSceneConstPtr ps(*planning_scene);
   ps->getCollidingPairs(contacts, *kinematic_state_);
   if (contacts.size() > 0) {
-    std::cout << "Collision\n";
     return false;
   }
 
-  std::cout << "Constraints passed!\n";
   return true;
 }
 

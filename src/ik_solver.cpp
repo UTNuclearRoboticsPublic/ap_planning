@@ -259,10 +259,8 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
 
   setUp(res);
 
-  // Set up a constraints struct
-  const size_t m = req.screw_path.size();
-  affordance_primitives::ScrewConstraintInfo constraints =
-      ap_planning::getConstraintInfo(req);
+  // Set up a constraints class
+  affordance_primitives::ChainedScrews constraints = req.toConstraint();
 
   // Make a new robot state
   moveit::core::RobotStatePtr current_state(
@@ -280,14 +278,11 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
       ROS_WARN_STREAM("Unknown EE name");
       return INVALID_GOAL;
     }
-    constraints.tf_m_to_s = current_state->getFrameTransform(req.ee_frame_name);
+    constraints.setReferenceFrame(
+        current_state->getFrameTransform(req.ee_frame_name));
   } else {
-    // Use IK to find the first joint state
-    tf2::fromMsg(req.start_pose.pose, constraints.tf_m_to_s);
-
     // Calculate the starting pose
-    const auto tf_start_pose = affordance_primitives::getPoseOnPath(
-        constraints, constraints.phi_bounds.first);
+    const auto tf_start_pose = constraints.getPose(constraints.lambdaMin());
     first_pose = tf2::toMsg(tf_start_pose);
 
     trajectory_msgs::JointTrajectoryPoint point;
@@ -322,24 +317,20 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
   // Go through the screw segments
   const double theta_dot = 0.1;  // TODO do this better
   double lambda = 0;
-  auto phi = constraints.phi_bounds.first;
-  for (size_t i = 0; i < m; ++i) {
+  auto phi = constraints.lowerBounds();
+  for (size_t i = 0; i < constraints.size(); ++i) {
     // Figure out lambda spacing on this axis
     const double lambda_step = calculateSegmentSpacing(req.screw_path.at(i));
     lambda += lambda_step;
     time_now += lambda_step / theta_dot;
 
     // Calculate when we should stop for this segment
-    phi(i) = req.screw_path.at(i).end_theta;
-    const double lambda_max =
-        affordance_primitives::getLambda(phi, constraints.phi_bounds);
+    phi.at(i) = constraints.upperBounds().at(i);
+    const double lambda_max = constraints.getLambda(phi);
 
     // Go through and calculate all the poses for this point
     while (lambda <= lambda_max) {
-      const auto phi_now =
-          affordance_primitives::getPhi(lambda, constraints.phi_bounds);
-      const auto waypoint_now =
-          affordance_primitives::getPoseOnPath(constraints, phi_now);
+      const auto waypoint_now = constraints.getPose(lambda);
       lambda += lambda_step;
       time_now += lambda_step / theta_dot;
 

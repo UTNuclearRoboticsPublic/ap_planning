@@ -40,7 +40,7 @@
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 #include <tf2_eigen/tf2_eigen.h>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
-#include <affordance_primitives/screw_planning/screw_planning.hpp>
+#include <affordance_primitives/screw_planning/screw_constraint.hpp>
 
 namespace ob = ompl::base;
 
@@ -85,15 +85,16 @@ class ScrewValidSampler : public ob::ValidStateSampler {
   inline static std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
       planning_scene;
 
+  // Holds the constraints used for this plan
+  // NOTE: You must set this before creating instances of this class!
+  inline static std::shared_ptr<affordance_primitives::ScrewConstraint>
+      constraints;
+
  protected:
   ompl::RNG rng_;
-  ob::RealVectorBounds screw_bounds_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
   kinematics::KinematicsBasePtr ik_solver_;
-  std::vector<affordance_primitives::ScrewAxis> screw_axes_;
-  affordance_primitives::ScrewConstraintInfo screw_constraints_;
-  Eigen::Isometry3d start_pose_;
 };
 
 ob::StateSamplerPtr allocScrewSampler(const ob::StateSpace *state_space);
@@ -122,16 +123,16 @@ class ScrewSampler : public ob::StateSampler {
   inline static std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
       planning_scene;
 
+  // Holds the constraints used for this plan
+  // NOTE: You must set this before creating instances of this class!
+  inline static std::shared_ptr<affordance_primitives::ScrewConstraint>
+      constraints;
+
  protected:
   ompl::RNG rng_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
   kinematics::KinematicsBasePtr ik_solver_;
-  ob::RealVectorBounds screw_bounds_;
-  std::vector<affordance_primitives::ScrewAxis> screw_axes_;
-  affordance_primitives::ScrewConstraintInfo screw_constraints_;
-  double lambda_max_;
-  Eigen::Isometry3d start_pose_;
 };
 
 }  // namespace ap_planning
