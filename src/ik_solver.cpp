@@ -34,7 +34,8 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
     ROS_ERROR("Could not load RobotModel");
     return false;
   }
-  joint_model_group_ = kinematic_model_->getJointModelGroup(move_group_name);
+  joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
+      *kinematic_model_->getJointModelGroup(move_group_name));
   if (!joint_model_group_) {
     ROS_ERROR_STREAM("Could not find joint model group: " << move_group_name);
     return false;
@@ -44,7 +45,7 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
   if (!ik_solver_) {
     ROS_ERROR("Could not get IK Solver");
     return false;
-  } else if (!ik_solver_->supportsGroup(joint_model_group_)) {
+  } else if (!ik_solver_->supportsGroup(joint_model_group_.get())) {
     ROS_ERROR_STREAM(
         "IK Solver doesn't support group: " << joint_model_group_->getName());
     return false;
@@ -95,7 +96,7 @@ bool IKSolver::checkPointsAreClose(
 ap_planning::Result IKSolver::verifyTransition(
     const trajectory_msgs::JointTrajectoryPoint& point_a,
     const trajectory_msgs::JointTrajectoryPoint& point_b,
-    const moveit::core::JointModelGroup* jmg,
+    const std::shared_ptr<moveit::core::JointModelGroup>& jmg,
     const moveit::core::RobotState& state_b) {
   // Do broad face check to avoid joint reconfigurations
   if (!checkPointsAreClose(point_a, point_b)) {
@@ -126,7 +127,7 @@ ap_planning::Result IKSolver::verifyTransition(
   }
 
   // Check for a singular position
-  Eigen::JacobiSVD<Eigen::MatrixXd> svd(state_b.getJacobian(jmg));
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(state_b.getJacobian(jmg.get()));
   const double cond_number =
       svd.singularValues()[0] /
       svd.singularValues()[svd.singularValues().size() - 1];
@@ -138,11 +139,11 @@ ap_planning::Result IKSolver::verifyTransition(
   return ap_planning::SUCCESS;
 }
 
-bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
-                       const geometry_msgs::Pose& target_pose,
-                       const std::string& ee_frame,
-                       moveit::core::RobotState& robot_state,
-                       trajectory_msgs::JointTrajectoryPoint& point) {
+bool IKSolver::solveIK(
+    const std::shared_ptr<moveit::core::JointModelGroup>& jmg,
+    const geometry_msgs::Pose& target_pose, const std::string& ee_frame,
+    moveit::core::RobotState& robot_state,
+    trajectory_msgs::JointTrajectoryPoint& point) {
   // Set up the validation callback to make sure we don't collide with the
   // environment
   kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
@@ -150,7 +151,7 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
                                const std::vector<double>& joints,
                                moveit_msgs::MoveItErrorCodes& error_code) {
         auto state_cpy = robot_state;
-        state_cpy.setJointGroupPositions(jmg, joints);
+        state_cpy.setJointGroupPositions(jmg.get(), joints);
         collision_detection::CollisionResult::ContactMap contacts;
         (*planning_scene_)->getCollidingPairs(contacts, state_cpy);
 
@@ -163,7 +164,7 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
 
   // Solve the IK
   std::vector<double> ik_solution, seed_state;
-  robot_state.copyJointGroupPositions(jmg, seed_state);
+  robot_state.copyJointGroupPositions(jmg.get(), seed_state);
   moveit_msgs::MoveItErrorCodes err;
   if (!ik_solver_->searchPositionIK(target_pose, seed_state, 0.05, ik_solution,
                                     ik_callback_fn, err)) {
@@ -172,11 +173,11 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
   }
 
   // Update the robot state
-  robot_state.setJointGroupPositions(jmg, ik_solution);
+  robot_state.setJointGroupPositions(jmg.get(), ik_solution);
   robot_state.update();
 
   // Copy to the point
-  robot_state.copyJointGroupPositions(jmg, point.positions);
+  robot_state.copyJointGroupPositions(jmg.get(), point.positions);
 
   return true;
 }
@@ -198,11 +199,11 @@ ap_planning::Result IKSolver::plan(
   // Make a new robot state and copy the starting state
   moveit::core::RobotStatePtr current_state(
       new moveit::core::RobotState(kinematic_model_));
-  current_state->setJointGroupPositions(joint_model_group_, start_state);
+  current_state->setJointGroupPositions(joint_model_group_.get(), start_state);
 
   // We will check the first IK solution is close to the starting state
   trajectory_msgs::JointTrajectoryPoint starting_point;
-  current_state->copyJointGroupPositions(joint_model_group_,
+  current_state->copyJointGroupPositions(joint_model_group_.get(),
                                          starting_point.positions);
 
   // Figure out how many waypoints there are
@@ -265,41 +266,46 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
   moveit::core::RobotStatePtr current_state(
       new moveit::core::RobotState(kinematic_model_));
   std::vector<double> starting_joint_config = req.start_joint_state;
+  std::vector<std::vector<double>> starts;
 
   geometry_msgs::Pose first_pose;
   const bool passed_start_joint_state =
       req.start_joint_state.size() == joint_model_group_->getVariableCount();
   if (passed_start_joint_state) {
     // Copy the starting position
-    current_state->setJointGroupPositions(joint_model_group_,
+    current_state->setJointGroupPositions(joint_model_group_.get(),
                                           req.start_joint_state);
     if (!current_state->knowsFrameTransform(req.ee_frame_name)) {
       ROS_WARN_STREAM("Unknown EE name");
+      cleanUp();
       return INVALID_GOAL;
     }
     constraints.setReferenceFrame(
         current_state->getFrameTransform(req.ee_frame_name));
+    first_pose = tf2::toMsg(constraints.referenceFrame());
   } else {
     // Calculate the starting pose
     const auto tf_start_pose = constraints.getPose(constraints.lambdaMin());
     first_pose = tf2::toMsg(tf_start_pose);
 
-    trajectory_msgs::JointTrajectoryPoint point;
-    bool found_start_config = false;
-    for (size_t i = 0; i < 5; ++i) {
-      current_state->setToRandomPositions(joint_model_group_);
-      if (solveIK(joint_model_group_, first_pose, req.ee_frame_name,
-                  *current_state, point)) {
-        found_start_config = true;
-        break;
-      }
+    // Calculate a bunch of starting joint configs
+    size_t i = 0;
+    constexpr size_t num_starts = 20;
+    while (starts.size() < num_starts && i < 2 * num_starts && ros::ok()) {
+      // Try to add a goal configuration
+      increaseStateList(joint_model_group_, current_state, *planning_scene_,
+                        ik_solver_, first_pose, starts);
+
+      // Every time, we set to random states to get variety in solutions
+      current_state->setToRandomPositions(joint_model_group_.get());
+      current_state->update(true);
+      i++;
     }
-    if (!found_start_config) {
+    if (starts.size() == 0) {
       cleanUp();
+      ROS_WARN_STREAM("No initial IK solution found");
       return ap_planning::NO_IK_SOLUTION;
     }
-    current_state->copyJointGroupPositions(joint_model_group_,
-                                           starting_joint_config);
   }
 
   // Create the trajectory
@@ -328,7 +334,7 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     const double lambda_max = constraints.getLambda(phi);
 
     // Go through and calculate all the poses for this point
-    while (lambda <= lambda_max) {
+    while (lambda <= lambda_max && ros::ok()) {
       const auto waypoint_now = constraints.getPose(lambda);
       lambda += lambda_step;
       time_now += lambda_step / theta_dot;
@@ -341,7 +347,36 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     }
   }
 
-  return plan(affordance_traj, starting_joint_config, req.ee_frame_name, res);
+  // If pass a joint state, just plan with that one
+  if (passed_start_joint_state) {
+    return plan(affordance_traj, starting_joint_config, req.ee_frame_name, res);
+  }
+
+  // Otherwise, plan from multiple
+  ap_planning::APPlanningResponse this_response;
+  while (ros::ok() && !starts.empty()) {
+    auto this_start = starts.back();
+    starts.pop_back();
+
+    // Do the plan
+    auto result =
+        plan(affordance_traj, this_start, req.ee_frame_name, this_response);
+
+    // If success, just get out ASAP
+    if (result == ap_planning::SUCCESS) {
+      res = this_response;
+      return result;
+    }
+
+    // If better than previous, update it
+    if (this_response.percentage_complete > res.percentage_complete) {
+      res = this_response;
+    }
+  }
+
+  // If we are here, we did not find a valid plan, but res is the best found
+  cleanUp();
+  return ap_planning::PLANNING_FAIL;
 }
 
 double IKSolver::calculateSegmentSpacing(const ScrewSegment& segment) {

@@ -61,11 +61,11 @@ class IKSolverBase {
    * the solution
    * @param point The trajectory point to fill out
    */
-  virtual bool solveIK(const moveit::core::JointModelGroup* jmg,
-                       const geometry_msgs::Pose& target_pose,
-                       const std::string& ee_frame,
-                       moveit::core::RobotState& robot_state,
-                       trajectory_msgs::JointTrajectoryPoint& point) = 0;
+  virtual bool solveIK(
+      const std::shared_ptr<moveit::core::JointModelGroup>& jmg,
+      const geometry_msgs::Pose& target_pose, const std::string& ee_frame,
+      moveit::core::RobotState& robot_state,
+      trajectory_msgs::JointTrajectoryPoint& point) = 0;
 
   /** Verifies that the robot transitioning from A to B is valid
    *
@@ -78,7 +78,7 @@ class IKSolverBase {
   virtual ap_planning::Result verifyTransition(
       const trajectory_msgs::JointTrajectoryPoint& point_a,
       const trajectory_msgs::JointTrajectoryPoint& point_b,
-      const moveit::core::JointModelGroup* jmg,
+      const std::shared_ptr<moveit::core::JointModelGroup>& jmg,
       const moveit::core::RobotState& state_b) = 0;
 
   /** Plans a joint trajectory based on a screw primitive
@@ -109,7 +109,7 @@ class IKSolverBase {
  protected:
   IKSolverBase(){};
   ros::NodeHandle nh_;
-  moveit::core::JointModelGroup* joint_model_group_;
+  std::shared_ptr<moveit::core::JointModelGroup> joint_model_group_;
   moveit::core::RobotModelPtr kinematic_model_;
 };
 }  // namespace ap_planning

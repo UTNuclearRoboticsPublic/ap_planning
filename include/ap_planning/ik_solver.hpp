@@ -35,6 +35,7 @@
 #include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <ros/ros.h>
 #include <ap_planning/ik_solver_base.hpp>
+#include <ap_planning/state_sampling.hpp>
 
 namespace ap_planning {
 
@@ -74,7 +75,7 @@ class IKSolver : public IKSolverBase {
    * @param point The trajectory point to fill out
    * @return True if a solution was found, false otherwise
    */
-  bool solveIK(const moveit::core::JointModelGroup* jmg,
+  bool solveIK(const std::shared_ptr<moveit::core::JointModelGroup>& jmg,
                const geometry_msgs::Pose& target_pose,
                const std::string& ee_frame,
                moveit::core::RobotState& robot_state,
@@ -93,7 +94,7 @@ class IKSolver : public IKSolverBase {
   ap_planning::Result verifyTransition(
       const trajectory_msgs::JointTrajectoryPoint& point_a,
       const trajectory_msgs::JointTrajectoryPoint& point_b,
-      const moveit::core::JointModelGroup* jmg,
+      const std::shared_ptr<moveit::core::JointModelGroup>& jmg,
       const moveit::core::RobotState& state_b) override;
 
   /** Plans a joint trajectory based on an affordance trajectory
@@ -120,12 +121,8 @@ class IKSolver : public IKSolverBase {
       APPlanningResponse& res) override;
 
  protected:
-  affordance_primitives::APScrewExecutor screw_executor_;
-
   // This holds the kinematics solver
   kinematics::KinematicsBasePtr ik_solver_;
-
-  moveit::core::RobotStatePtr kinematic_state_;
 
   planning_scene_monitor::PlanningSceneMonitorPtr psm_;
   std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
