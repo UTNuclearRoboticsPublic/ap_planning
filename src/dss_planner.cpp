@@ -18,6 +18,8 @@ DSSPlanner::DSSPlanner(const std::string& move_group_name,
 
   psm_ = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(
       robot_description_name_);
+  psm_->startSceneMonitor();
+  psm_->startStateMonitor();
 
   // Set kinematic model for classes that will need it
   ScrewSampler::kinematic_model = kinematic_model_;
@@ -34,9 +36,8 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
   res.percentage_complete = 0.0;
   res.trajectory_is_valid = false;
 
-  kinematic_state_ =
-      std::make_shared<moveit::core::RobotState>(kinematic_model_);
-  kinematic_state_->setToDefaultValues();
+  kinematic_state_ = std::make_shared<moveit::core::RobotState>(
+      *(psm_->getStateMonitor()->getCurrentState()));
 
   // Get the planning scene
   psm_->requestPlanningSceneState();

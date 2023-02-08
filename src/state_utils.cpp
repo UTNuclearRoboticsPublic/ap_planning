@@ -52,8 +52,11 @@ double ScrewGoal::distanceGoal(const ob::State *state) const {
   const ob::RealVectorStateSpace::StateType &screw_state =
       *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
 
-  // TODO make this generic for a vector of screws
-  return screw_bounds_.high[0] - screw_state[0];
+  Eigen::VectorXd error(screw_bounds_.high.size());
+  for (size_t i = 0; i < screw_bounds_.high.size(); ++i) {
+    error(i) = screw_bounds_.high[i] - screw_state[i];
+  }
+  return error.norm();
 }
 
 ScrewValidityChecker::ScrewValidityChecker(const ob::SpaceInformationPtr &si)
@@ -115,8 +118,17 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
     return false;
   }
 
+  // Check the error
   if (sol.error > 0.005) {
     return false;
+  }
+
+  // Check to make sure the screw state matches expected
+  for (size_t i = 0; i < constraints->size(); ++i) {
+    const double dist = fabs(sol.solved_phi[i] - screw_state[i]);
+    if (dist > 0.005) {
+      return false;
+    }
   }
 
   // Check for collisions

@@ -106,6 +106,7 @@ class IKSolver : public IKSolverBase {
   ap_planning::Result plan(const APPlanningRequest& req,
                            APPlanningResponse& res) override;
 
+ protected:
   /** Plans a joint trajectory based on an affordance trajectory
    *
    *
@@ -120,7 +121,6 @@ class IKSolver : public IKSolverBase {
       const std::vector<double>& start_state, const std::string& ee_name,
       APPlanningResponse& res) override;
 
- protected:
   // This holds the kinematics solver
   kinematics::KinematicsBasePtr ik_solver_;
 

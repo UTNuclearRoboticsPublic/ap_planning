@@ -54,6 +54,8 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
   // Set up planning scene monitor
   psm_ = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(
       robot_description_name);
+  psm_->startSceneMonitor();
+  psm_->startStateMonitor();
 
   return true;
 }
@@ -65,16 +67,11 @@ void IKSolver::setUp(APPlanningResponse& res) {
   res.percentage_complete = 0.0;
   res.trajectory_is_valid = false;
   res.path_length = -1;
-
-  // Get the new planning scene
-  if (!planning_scene_) {
-    psm_->requestPlanningSceneState();
-    planning_scene_ =
-        std::make_shared<planning_scene_monitor::LockedPlanningSceneRO>(psm_);
-  }
 }
 
-void IKSolver::cleanUp() { planning_scene_.reset(); }
+void IKSolver::cleanUp() {
+  // planning_scene_.reset();
+}
 
 bool IKSolver::checkPointsAreClose(
     const trajectory_msgs::JointTrajectoryPoint& point_a,
@@ -147,13 +144,13 @@ bool IKSolver::solveIK(
   // Set up the validation callback to make sure we don't collide with the
   // environment
   kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
-      [this, jmg, robot_state](const geometry_msgs::Pose& pose,
-                               const std::vector<double>& joints,
-                               moveit_msgs::MoveItErrorCodes& error_code) {
-        auto state_cpy = robot_state;
-        state_cpy.setJointGroupPositions(jmg.get(), joints);
+      [this, &jmg, &robot_state](const geometry_msgs::Pose& pose,
+                                 const std::vector<double>& joints,
+                                 moveit_msgs::MoveItErrorCodes& error_code) {
+        robot_state.setJointGroupPositions(jmg.get(), joints);
+        robot_state.update(true);
         collision_detection::CollisionResult::ContactMap contacts;
-        (*planning_scene_)->getCollidingPairs(contacts, state_cpy);
+        (*planning_scene_)->getCollidingPairs(contacts, robot_state);
 
         if (contacts.size() == 0) {
           error_code.val = moveit_msgs::MoveItErrorCodes::SUCCESS;
@@ -197,14 +194,15 @@ ap_planning::Result IKSolver::plan(
   setUp(res);
 
   // Make a new robot state and copy the starting state
-  moveit::core::RobotStatePtr current_state(
-      new moveit::core::RobotState(kinematic_model_));
-  current_state->setJointGroupPositions(joint_model_group_.get(), start_state);
+  moveit::core::RobotState current_state =
+      *(psm_->getStateMonitor()->getCurrentState());
+  current_state.setJointGroupPositions(joint_model_group_.get(), start_state);
+  current_state.update(true);
 
   // We will check the first IK solution is close to the starting state
   trajectory_msgs::JointTrajectoryPoint starting_point;
-  current_state->copyJointGroupPositions(joint_model_group_.get(),
-                                         starting_point.positions);
+  current_state.copyJointGroupPositions(joint_model_group_.get(),
+                                        starting_point.positions);
 
   // Figure out how many waypoints there are
   const size_t num_waypoints = affordance_traj.trajectory.size();
@@ -215,7 +213,7 @@ ap_planning::Result IKSolver::plan(
   for (auto& wp : affordance_traj.trajectory) {
     trajectory_msgs::JointTrajectoryPoint point;
     point.time_from_start = wp.time_from_start;
-    if (!solveIK(joint_model_group_, wp.pose, ee_name, *current_state, point)) {
+    if (!solveIK(joint_model_group_, wp.pose, ee_name, current_state, point)) {
       cleanUp();
       return ap_planning::NO_IK_SOLUTION;
     }
@@ -230,7 +228,7 @@ ap_planning::Result IKSolver::plan(
     } else {
       auto transition_result =
           verifyTransition(res.joint_trajectory.points.back(), point,
-                           joint_model_group_, *current_state);
+                           joint_model_group_, current_state);
       if (transition_result != ap_planning::SUCCESS) {
         cleanUp();
         return transition_result;
@@ -257,14 +255,20 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     return INVALID_GOAL;
   }
 
+  planning_scene_.reset();
+  psm_->requestPlanningSceneState();
+  planning_scene_ =
+      std::make_shared<planning_scene_monitor::LockedPlanningSceneRO>(psm_);
+
   setUp(res);
 
   // Set up a constraints class
   affordance_primitives::ChainedScrews constraints = req.toConstraint();
 
   // Make a new robot state
-  moveit::core::RobotStatePtr current_state(
-      new moveit::core::RobotState(kinematic_model_));
+  moveit::core::RobotStatePtr current_state =
+      std::make_shared<moveit::core::RobotState>(
+          *(psm_->getStateMonitor()->getCurrentState()));
   std::vector<double> starting_joint_config = req.start_joint_state;
   std::vector<std::vector<double>> starts;
 
@@ -292,13 +296,14 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     size_t i = 0;
     constexpr size_t num_starts = 20;
     while (starts.size() < num_starts && i < 2 * num_starts && ros::ok()) {
+      // Every time, we set to random states to get variety in solutions
+      current_state->setToRandomPositions(joint_model_group_.get());
+      current_state->update(true);
+
       // Try to add a goal configuration
       increaseStateList(joint_model_group_, current_state, *planning_scene_,
                         ik_solver_, first_pose, starts);
 
-      // Every time, we set to random states to get variety in solutions
-      current_state->setToRandomPositions(joint_model_group_.get());
-      current_state->update(true);
       i++;
     }
     if (starts.size() == 0) {

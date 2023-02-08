@@ -10,12 +10,12 @@ bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
                          const std::vector<double> &joints,
                          moveit_msgs::MoveItErrorCodes &error_code) {
   // Copy the IK solution to the robot state
-  auto state_cpy = robot_state;
-  state_cpy->setJointGroupPositions(jmg.get(), joints);
+  robot_state->setJointGroupPositions(jmg.get(), joints);
+  robot_state->update(true);
 
   // Check for collisions
   collision_detection::CollisionResult::ContactMap contacts;
-  ps->getCollidingPairs(contacts, *state_cpy);
+  ps->getCollidingPairs(contacts, *robot_state);
 
   // Set the error code
   if (contacts.size() == 0) {
