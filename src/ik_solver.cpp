@@ -306,6 +306,8 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
 
       i++;
     }
+    ROS_DEBUG_STREAM("Took " << i
+                             << " steps for num starts: " << starts.size());
     if (starts.size() == 0) {
       cleanUp();
       ROS_WARN_STREAM("No initial IK solution found");

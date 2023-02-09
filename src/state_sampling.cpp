@@ -19,8 +19,14 @@ bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
 
   // Set the error code
   if (contacts.size() == 0) {
+    ROS_DEBUG_STREAM("All good in CB");
     error_code.val = moveit_msgs::MoveItErrorCodes::SUCCESS;
   } else {
+    ROS_DEBUG_STREAM("Contacts: " << contacts.size());
+    for (const auto &contact : contacts) {
+      ROS_DEBUG_STREAM(contact.first.first << "' and '"
+                                           << contact.first.second);
+    }
     error_code.val = moveit_msgs::MoveItErrorCodes::NO_IK_SOLUTION;
   }
   return true;
@@ -65,9 +71,10 @@ ScrewValidSampler::ScrewValidSampler(const ob::SpaceInformation *si)
   si->getStateSpace()->params().getParam("move_group", mg_string);
 
   // Load robot
-  kinematic_state_ =
-      std::make_shared<moveit::core::RobotState>(kinematic_model);
-  kinematic_state_->setToDefaultValues();
+  kinematic_state_ = std::make_shared<moveit::core::RobotState>(
+      *(planning_scene->getPlanningSceneMonitor()
+            ->getStateMonitor()
+            ->getCurrentState()));
 
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
       *kinematic_model->getJointModelGroup(mg_string));
@@ -136,9 +143,10 @@ ScrewSampler::ScrewSampler(const ob::StateSpace *state_space)
   std::string mg_string;
   state_space->params().getParam("move_group", mg_string);
 
-  kinematic_state_ =
-      std::make_shared<moveit::core::RobotState>(kinematic_model);
-  kinematic_state_->setToDefaultValues();
+  kinematic_state_ = std::make_shared<moveit::core::RobotState>(
+      *(planning_scene->getPlanningSceneMonitor()
+            ->getStateMonitor()
+            ->getCurrentState()));
 
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
       *kinematic_model->getJointModelGroup(mg_string));

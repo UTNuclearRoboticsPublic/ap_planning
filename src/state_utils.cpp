@@ -66,9 +66,10 @@ ScrewValidityChecker::ScrewValidityChecker(const ob::SpaceInformationPtr &si)
   si->getStateSpace()->params().getParam("move_group", mg_string);
   si->getStateSpace()->params().getParam("ee_frame_name", ee_frame_name_);
 
-  kinematic_state_ =
-      std::make_shared<moveit::core::RobotState>(kinematic_model);
-  kinematic_state_->setToDefaultValues();
+  kinematic_state_ = std::make_shared<moveit::core::RobotState>(
+      *(planning_scene->getPlanningSceneMonitor()
+            ->getStateMonitor()
+            ->getCurrentState()));
 
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
       *kinematic_model->getJointModelGroup(mg_string));
