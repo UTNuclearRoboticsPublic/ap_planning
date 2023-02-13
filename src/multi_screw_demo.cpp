@@ -210,92 +210,6 @@ std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
   collision_object.primitives.clear();
   collision_object.primitive_poses.clear();
 
-  // collision_object.id = "screw3_box1";
-  // primitive.dimensions[primitive.BOX_X] = 1.5;
-  // primitive.dimensions[primitive.BOX_Y] = 1.5;
-  // primitive.dimensions[primitive.BOX_Z] = 0.1;
-  // box_pose.position.x = 0.5;
-  // box_pose.position.y = 0.0;
-  // box_pose.position.z = 0.75;
-
-  // collision_object.primitives.push_back(primitive);
-  // collision_object.primitive_poses.push_back(box_pose);
-  // output.push(collision_object);
-  // collision_object.primitives.clear();
-  // collision_object.primitive_poses.clear();
-
-  // collision_object.id = "screw4_box1";
-  // primitive.dimensions[primitive.BOX_X] = 1.5;
-  // primitive.dimensions[primitive.BOX_Y] = 0.1;
-  // primitive.dimensions[primitive.BOX_Z] = 1.5;
-  // box_pose.position.x = 0.5;
-  // box_pose.position.y = -0.2;
-  // box_pose.position.z = 0.25;
-
-  // collision_object.primitives.push_back(primitive);
-  // collision_object.primitive_poses.push_back(box_pose);
-  // primitive.dimensions[primitive.BOX_X] = 1.5;
-  // primitive.dimensions[primitive.BOX_Y] = 0.1;
-  // primitive.dimensions[primitive.BOX_Z] = 1.5;
-  // box_pose.position.x = 0.5;
-  // box_pose.position.y = 0.2;
-  // box_pose.position.z = 0.25;
-  // collision_object.primitives.push_back(primitive);
-  // collision_object.primitive_poses.push_back(box_pose);
-  // output.push(collision_object);
-  // collision_object.primitives.clear();
-  // collision_object.primitive_poses.clear();
-
-  // collision_object.id = "screw5_box1";
-  // primitive.dimensions[primitive.BOX_X] = 1.5;
-  // primitive.dimensions[primitive.BOX_Y] = 1.5;
-  // primitive.dimensions[primitive.BOX_Z] = 0.1;
-  // box_pose.position.x = 0.5;
-  // box_pose.position.y = 0.0;
-  // box_pose.position.z = 0.65;
-
-  // collision_object.primitives.push_back(primitive);
-  // collision_object.primitive_poses.push_back(box_pose);
-  // output.push(collision_object);
-  // collision_object.primitives.clear();
-  // collision_object.primitive_poses.clear();
-
-  // collision_object.id = "screw6_box1";
-  // primitive.dimensions[primitive.BOX_X] = 1.5;
-  // primitive.dimensions[primitive.BOX_Y] = 1.5;
-  // primitive.dimensions[primitive.BOX_Z] = 0.1;
-  // box_pose.position.x = 0.5;
-  // box_pose.position.y = 0.0;
-  // box_pose.position.z = 0.65;
-
-  // collision_object.primitives.push_back(primitive);
-  // collision_object.primitive_poses.push_back(box_pose);
-  // output.push(collision_object);
-  // collision_object.primitives.clear();
-  // collision_object.primitive_poses.clear();
-
-  // collision_object.id = "screw7_box1";
-  // primitive.dimensions[primitive.BOX_X] = 1.5;
-  // primitive.dimensions[primitive.BOX_Y] = 0.1;
-  // primitive.dimensions[primitive.BOX_Z] = 1.5;
-  // box_pose.position.x = 0.5;
-  // box_pose.position.y = -0.2;
-  // box_pose.position.z = 0.25;
-
-  // collision_object.primitives.push_back(primitive);
-  // collision_object.primitive_poses.push_back(box_pose);
-  // primitive.dimensions[primitive.BOX_X] = 1.5;
-  // primitive.dimensions[primitive.BOX_Y] = 0.1;
-  // primitive.dimensions[primitive.BOX_Z] = 1.5;
-  // box_pose.position.x = 0.5;
-  // box_pose.position.y = 0.2;
-  // box_pose.position.z = 0.25;
-  // collision_object.primitives.push_back(primitive);
-  // collision_object.primitive_poses.push_back(box_pose);
-  // output.push(collision_object);
-  // collision_object.primitives.clear();
-  // collision_object.primitive_poses.clear();
-
   return output;
 }
 
@@ -364,10 +278,6 @@ int main(int argc, char **argv) {
     if (show_trajectories) {
       visual_tools.prompt(
           "Press 'next' in the RvizVisualToolsGui window to plan next screw");
-      if (ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME,
-                                         ros::console::levels::Debug)) {
-        ros::console::notifyLoggerLevelsChanged();
-      }
     }
 
     if (use_obstacles && !collision_objects.empty()) {

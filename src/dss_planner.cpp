@@ -138,7 +138,6 @@ bool DSSPlanner::setupStateSpace(const APPlanningRequest& req) {
   auto screw_space = std::make_shared<ob::RealVectorStateSpace>();
   auto joint_space = std::make_shared<ob::RealVectorStateSpace>();
 
-  size_t i = 0;
   // Add screw dimensions
   for (const auto& segment : req.screw_path) {
     if (segment.start_theta > segment.end_theta) {
@@ -321,35 +320,6 @@ bool DSSPlanner::findGoalStates(
 
   return goal_configs.size() > 0;
 }
-
-// void DSSPlanner::increaseStateList(
-//     const affordance_primitives::Pose& pose,
-//     std::vector<std::vector<double>>& state_list) {
-//   // Set up IK callback
-//   kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
-//       [this](const geometry_msgs::Pose& pose, const std::vector<double>&
-//       joints,
-//              moveit_msgs::MoveItErrorCodes& error_code) {
-//         ikCallbackFnAdapter(joint_model_group_, kinematic_state_,
-//                             *planning_scene_, joints, error_code);
-//       };
-
-//   // Try to solve the IK
-//   std::vector<double> seed_state, ik_solution;
-//   moveit_msgs::MoveItErrorCodes err;
-//   kinematics::KinematicsQueryOptions opts;
-//   kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
-//                                             seed_state);
-//   if (!ik_solver_->searchPositionIK(pose, seed_state, 0.05, ik_solution,
-//                                     ik_callback_fn, err, opts)) {
-//     return;
-//   }
-
-//   // If the solution is valid, add it to the list
-//   if (checkDuplicateState(state_list, ik_solution)) {
-//     state_list.push_back(ik_solution);
-//   }
-// }
 
 void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
                                   const APPlanningRequest& req,

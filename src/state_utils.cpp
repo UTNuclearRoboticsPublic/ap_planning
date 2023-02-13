@@ -120,7 +120,7 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   }
 
   // Check the error
-  if (sol.error > 0.005) {
+  if (sol.error > constraints->tolerance()) {
     return false;
   }
 

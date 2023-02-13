@@ -1,4 +1,3 @@
-#include <bio_ik/bio_ik.h>
 #include <affordance_primitives/screw_model/screw_execution.hpp>
 #include <ap_planning/ik_solver.hpp>
 
@@ -67,10 +66,6 @@ void IKSolver::setUp(APPlanningResponse& res) {
   res.percentage_complete = 0.0;
   res.trajectory_is_valid = false;
   res.path_length = -1;
-}
-
-void IKSolver::cleanUp() {
-  // planning_scene_.reset();
 }
 
 bool IKSolver::checkPointsAreClose(
@@ -214,7 +209,6 @@ ap_planning::Result IKSolver::plan(
     trajectory_msgs::JointTrajectoryPoint point;
     point.time_from_start = wp.time_from_start;
     if (!solveIK(joint_model_group_, wp.pose, ee_name, current_state, point)) {
-      cleanUp();
       return ap_planning::NO_IK_SOLUTION;
     }
     if (res.joint_trajectory.points.size() < 1) {
@@ -222,7 +216,6 @@ ap_planning::Result IKSolver::plan(
         ROS_ERROR_STREAM("Points are not close!\n"
                          << starting_point << "\n\n"
                          << point);
-        cleanUp();
         return ap_planning::INVALID_TRANSITION;
       }
     } else {
@@ -230,7 +223,6 @@ ap_planning::Result IKSolver::plan(
           verifyTransition(res.joint_trajectory.points.back(), point,
                            joint_model_group_, current_state);
       if (transition_result != ap_planning::SUCCESS) {
-        cleanUp();
         return transition_result;
       }
     }
@@ -244,7 +236,6 @@ ap_planning::Result IKSolver::plan(
   res.trajectory_is_valid = true;
   res.path_length = -1;  // Not implemented
 
-  cleanUp();
   return ap_planning::SUCCESS;
 }
 
@@ -281,7 +272,6 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
                                           req.start_joint_state);
     if (!current_state->knowsFrameTransform(req.ee_frame_name)) {
       ROS_WARN_STREAM("Unknown EE name");
-      cleanUp();
       return INVALID_GOAL;
     }
     constraints.setReferenceFrame(
@@ -306,10 +296,7 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
 
       i++;
     }
-    ROS_DEBUG_STREAM("Took " << i
-                             << " steps for num starts: " << starts.size());
     if (starts.size() == 0) {
-      cleanUp();
       ROS_WARN_STREAM("No initial IK solution found");
       return ap_planning::NO_IK_SOLUTION;
     }
@@ -382,7 +369,6 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
   }
 
   // If we are here, we did not find a valid plan, but res is the best found
-  cleanUp();
   return ap_planning::PLANNING_FAIL;
 }
 

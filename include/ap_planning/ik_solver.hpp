@@ -51,7 +51,7 @@ const double CONDITION_NUM_LIMIT = 100;
 class IKSolver : public IKSolverBase {
  public:
   IKSolver(){};
-  ~IKSolver() { cleanUp(); };
+  ~IKSolver() { planning_scene_.reset(); };
 
   /** Initializes the solver by looking up ROS parameters for:
    *
@@ -134,7 +134,6 @@ class IKSolver : public IKSolverBase {
   double condition_num_limit_;
 
   void setUp(APPlanningResponse& res);
-  void cleanUp();
 
   double calculateSegmentSpacing(const ScrewSegment& segment);
 

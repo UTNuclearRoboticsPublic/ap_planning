@@ -13,7 +13,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(catkin REQUIRED COMPONENTS
   affordance_primitive_msgs
   affordance_primitives
-  bio_ik
   moveit_core
   moveit_ros_planning_interface
   moveit_visual_tools
