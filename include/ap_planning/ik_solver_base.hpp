@@ -49,7 +49,9 @@ namespace ap_planning {
  */
 class IKSolverBase {
  public:
-  virtual bool initialize(const ros::NodeHandle& nh) = 0;
+  virtual bool initialize(const ros::NodeHandle& nh,
+                          const std::string& move_group_name,
+                          const std::string& robot_description_name) = 0;
 
   /** Solves 1 IK request and updates the passed robot state and trajectory
    * point

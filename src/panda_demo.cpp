@@ -337,7 +337,7 @@ int main(int argc, char **argv) {
   }
 
   ap_planning::DSSPlanner ap_planner("panda_arm");
-  ap_planning::SequentialStepPlanner sequential_step_planner(nh);
+  ap_planning::SequentialStepPlanner sequential_step_planner("panda_arm");
   if (!sequential_step_planner.initialize()) {
     ROS_ERROR_STREAM("Init failed");
     return EXIT_FAILURE;

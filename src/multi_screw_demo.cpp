@@ -167,7 +167,7 @@ std::queue<ap_planning::APPlanningRequest> get_planning_queue(
   single_request.screw_path.clear();
   screw_0 = ap_planning::ScrewSegment();
   screw_0.screw_msg.header.frame_id = "panda_link0";
-  screw_0.start_theta = -0.25*M_PI;
+  screw_0.start_theta = -0.25 * M_PI;
   screw_0.end_theta = 0.0;
   screw_0.screw_msg.origin = geometry_msgs::Point();
   screw_0.screw_msg.origin.z -= 0.3;
@@ -177,7 +177,7 @@ std::queue<ap_planning::APPlanningRequest> get_planning_queue(
 
   screw_1 = ap_planning::ScrewSegment();
   screw_1.screw_msg.header.frame_id = "panda_link0";
-  screw_1.start_theta = -0.25*M_PI;
+  screw_1.start_theta = -0.25 * M_PI;
   screw_1.end_theta = 0.0;
   screw_1.screw_msg.origin = geometry_msgs::Point();
   screw_1.screw_msg.origin.z -= 0.3;
@@ -188,7 +188,7 @@ std::queue<ap_planning::APPlanningRequest> get_planning_queue(
   screw_2 = ap_planning::ScrewSegment();
   screw_2.screw_msg.header.frame_id = "panda_link0";
   screw_2.start_theta = 0.0;
-  screw_2.end_theta = 0.25*M_PI;
+  screw_2.end_theta = 0.25 * M_PI;
   screw_2.screw_msg.origin = geometry_msgs::Point();
   screw_2.screw_msg.origin.z -= 0.3;
   screw_2.screw_msg.axis.z = 1;
@@ -198,7 +198,7 @@ std::queue<ap_planning::APPlanningRequest> get_planning_queue(
   screw_3 = ap_planning::ScrewSegment();
   screw_3.screw_msg.header.frame_id = "panda_link0";
   screw_3.start_theta = 0.0;
-  screw_3.end_theta = 0.25*M_PI;
+  screw_3.end_theta = 0.25 * M_PI;
   screw_3.screw_msg.origin = geometry_msgs::Point();
   screw_3.screw_msg.origin.z -= 0.3;
   screw_3.screw_msg.axis.z = 1;
@@ -248,7 +248,6 @@ std::queue<ap_planning::APPlanningRequest> get_planning_queue(
   single_request.screw_path.push_back(screw_1);
   single_request.screw_path.push_back(screw_2);
   planning_queue.push(single_request);
-
 
   return planning_queue;
 }
@@ -319,12 +318,12 @@ std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
   primitive.dimensions[primitive.BOX_X] = 0.75;
   primitive.dimensions[primitive.BOX_Y] = 0.7;
   primitive.dimensions[primitive.BOX_Z] = 0.1;
-  box_pose.position.x = 0.5*0.75 - 0.3;
-  box_pose.position.y = 0.5*0.7 + 0.05;
+  box_pose.position.x = 0.5 * 0.75 - 0.3;
+  box_pose.position.y = 0.5 * 0.7 + 0.05;
   box_pose.position.z = 0.7;
   collision_object.primitives.push_back(primitive);
   collision_object.primitive_poses.push_back(box_pose);
-  
+
   output.push(collision_object);
   collision_object.primitives.clear();
   collision_object.primitive_poses.clear();
@@ -347,7 +346,7 @@ std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
   box_pose.position.z = 0.2;
   collision_object.primitives.push_back(primitive);
   collision_object.primitive_poses.push_back(box_pose);
-  
+
   output.push(collision_object);
   collision_object.primitives.clear();
   collision_object.primitive_poses.clear();
@@ -398,7 +397,7 @@ int main(int argc, char **argv) {
   auto planning_queue = get_planning_queue(default_joint_state);
 
   ap_planning::DSSPlanner ap_planner("panda_arm");
-  ap_planning::SequentialStepPlanner sequential_step_planner(nh);
+  ap_planning::SequentialStepPlanner sequential_step_planner("panda_arm");
   if (!sequential_step_planner.initialize()) {
     ROS_ERROR_STREAM("Init failed");
     return EXIT_FAILURE;

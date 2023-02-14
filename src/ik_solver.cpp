@@ -4,19 +4,11 @@
 #include <pluginlib/class_list_macros.h>
 
 namespace ap_planning {
-bool IKSolver::initialize(const ros::NodeHandle& nh) {
+bool IKSolver::initialize(const ros::NodeHandle& nh,
+                          const std::string& move_group_name,
+                          const std::string& robot_description_name) {
   nh_ = nh;
   const std::string n_name = ros::this_node::getName();
-
-  // Get robot description and load model
-  std::string robot_description_name, move_group_name;
-  nh_.param<std::string>(n_name + "/robot_description_name",
-                         robot_description_name, "/robot_description");
-  if (!nh_.getParam(n_name + "/move_group_name", move_group_name)) {
-    ROS_ERROR_STREAM("Could not find parameter: "
-                     << std::string(n_name + "/move_group_name"));
-    return false;
-  }
 
   // Get planning parameters
   nh_.param<double>(n_name + "/waypoint_dist", waypoint_dist_, WAYPOINT_DIST);

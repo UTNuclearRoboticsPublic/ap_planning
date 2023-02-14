@@ -282,7 +282,7 @@ int main(int argc, char **argv) {
   planning_queue.push(single_request);
 
   ap_planning::DSSPlanner ap_planner("puma_arm_and_base");
-  ap_planning::SequentialStepPlanner sequential_step_planner(nh);
+  ap_planning::SequentialStepPlanner sequential_step_planner("panda_arm");
   if (!sequential_step_planner.initialize()) {
     ROS_ERROR_STREAM("Init failed");
     return EXIT_FAILURE;

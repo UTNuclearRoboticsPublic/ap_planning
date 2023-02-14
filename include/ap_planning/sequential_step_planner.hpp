@@ -50,7 +50,9 @@ class SequentialStepPlanner {
    *
    * @param nh ROS node handle
    */
-  SequentialStepPlanner(const ros::NodeHandle& nh);
+  SequentialStepPlanner(
+      const std::string& move_group_name,
+      const std::string& robot_description_name = "robot_description");
   ~SequentialStepPlanner(){};
 
   bool initialize();
@@ -81,6 +83,8 @@ class SequentialStepPlanner {
   std::shared_ptr<pluginlib::ClassLoader<ap_planning::IKSolverBase>>
       solver_loader_;
   boost::shared_ptr<ap_planning::IKSolverBase> ik_solver_;
+
+  std::string move_group_name_, robot_description_name_;
 
   bool initialized_;
 };

@@ -1,19 +1,24 @@
 #include <ap_planning/sequential_step_planner.hpp>
 
 namespace ap_planning {
-SequentialStepPlanner::SequentialStepPlanner(const ros::NodeHandle& nh)
-    : initialized_(false) {
-  nh_ = nh;
-}
+SequentialStepPlanner::SequentialStepPlanner(
+    const std::string& move_group_name,
+    const std::string& robot_description_name)
+    : nh_(),
+      move_group_name_(move_group_name),
+      robot_description_name_(robot_description_name),
+      initialized_(false) {}
 
 bool SequentialStepPlanner::initialize() {
   // Read the solver name from the parameter server
   std::string ik_solver_name;
   if (!nh_.getParam(ros::this_node::getName() + "/ik_solver_name",
                     ik_solver_name)) {
-    ROS_ERROR_STREAM("Could not load parameter: " << std::string(
-                         ros::this_node::getName() + "/ik_solver_name"));
-    return false;
+    ROS_WARN_STREAM(
+        "Could not load parameter: " << std::string(
+            ros::this_node::getName() +
+            "/ik_solver_name. Using 'ap_planning::IKSolver' default"));
+    ik_solver_name = "ap_planning::IKSolver";
   }
 
   // Load solver
@@ -26,7 +31,8 @@ bool SequentialStepPlanner::initialize() {
     ROS_ERROR("Solver plugin failed to load, error was: %s", ex.what());
     return false;
   }
-  initialized_ = ik_solver_->initialize(nh_);
+  initialized_ =
+      ik_solver_->initialize(nh_, move_group_name_, robot_description_name_);
   return initialized_;
 }
 

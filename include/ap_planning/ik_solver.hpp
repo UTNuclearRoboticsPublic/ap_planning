@@ -63,7 +63,8 @@ class IKSolver : public IKSolverBase {
    * @param nh Parameters are considered to be namespaced to this node
    * @return False if the parameters couldn't be found, true otherwise
    */
-  bool initialize(const ros::NodeHandle& nh) override;
+  bool initialize(const ros::NodeHandle& nh, const std::string& move_group_name,
+                  const std::string& robot_description_name) override;
 
   /** Solves 1 IK request
    *
