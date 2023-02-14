@@ -100,7 +100,7 @@ std::queue<ap_planning::APPlanningRequest> get_planning_queue(
     const std::vector<double> &default_joint_state) {
   std::queue<ap_planning::APPlanningRequest> planning_queue;
   ap_planning::APPlanningRequest single_request;
-  ap_planning::ScrewSegment screw_0, screw_1, screw_2;
+  ap_planning::ScrewSegment screw_0, screw_1, screw_2, screw_3;
   screw_0.screw_msg.header.frame_id = "panda_link0";
   screw_1.screw_msg.header.frame_id = "panda_link0";
   screw_2.screw_msg.header.frame_id = "panda_link0";
@@ -163,6 +163,93 @@ std::queue<ap_planning::APPlanningRequest> get_planning_queue(
   single_request.screw_path.push_back(screw_1);
   planning_queue.push(single_request);
 
+  // Fun with pitches
+  single_request.screw_path.clear();
+  screw_0 = ap_planning::ScrewSegment();
+  screw_0.screw_msg.header.frame_id = "panda_link0";
+  screw_0.start_theta = -0.25*M_PI;
+  screw_0.end_theta = 0.0;
+  screw_0.screw_msg.origin = geometry_msgs::Point();
+  screw_0.screw_msg.origin.z -= 0.3;
+  screw_0.screw_msg.axis.z = 1;
+  screw_0.screw_msg.is_pure_translation = false;
+  screw_0.screw_msg.pitch = 0.0;
+
+  screw_1 = ap_planning::ScrewSegment();
+  screw_1.screw_msg.header.frame_id = "panda_link0";
+  screw_1.start_theta = -0.25*M_PI;
+  screw_1.end_theta = 0.0;
+  screw_1.screw_msg.origin = geometry_msgs::Point();
+  screw_1.screw_msg.origin.z -= 0.3;
+  screw_1.screw_msg.axis.z = 1;
+  screw_1.screw_msg.is_pure_translation = false;
+  screw_1.screw_msg.pitch = 0.3;
+
+  screw_2 = ap_planning::ScrewSegment();
+  screw_2.screw_msg.header.frame_id = "panda_link0";
+  screw_2.start_theta = 0.0;
+  screw_2.end_theta = 0.25*M_PI;
+  screw_2.screw_msg.origin = geometry_msgs::Point();
+  screw_2.screw_msg.origin.z -= 0.3;
+  screw_2.screw_msg.axis.z = 1;
+  screw_2.screw_msg.is_pure_translation = false;
+  screw_2.screw_msg.pitch = -0.3;
+
+  screw_3 = ap_planning::ScrewSegment();
+  screw_3.screw_msg.header.frame_id = "panda_link0";
+  screw_3.start_theta = 0.0;
+  screw_3.end_theta = 0.25*M_PI;
+  screw_3.screw_msg.origin = geometry_msgs::Point();
+  screw_3.screw_msg.origin.z -= 0.3;
+  screw_3.screw_msg.axis.z = 1;
+  screw_3.screw_msg.is_pure_translation = false;
+  screw_3.screw_msg.pitch = 0.0;
+
+  single_request.screw_path.push_back(screw_0);
+  single_request.screw_path.push_back(screw_1);
+  single_request.screw_path.push_back(screw_2);
+  single_request.screw_path.push_back(screw_3);
+  planning_queue.push(single_request);
+
+  // Mess with the starting pose
+  single_request.screw_path.clear();
+  single_request.start_pose.pose.position.x = 0.525;
+  single_request.start_pose.pose.position.y = 0.010;
+  single_request.start_pose.pose.position.z = 0.503;
+  single_request.start_pose.pose.orientation.x = 0.693;
+  single_request.start_pose.pose.orientation.y = 0.016;
+  single_request.start_pose.pose.orientation.z = 0.721;
+  single_request.start_pose.pose.orientation.w = -0.017;
+
+  screw_0 = ap_planning::ScrewSegment();
+  screw_0.screw_msg.header.frame_id = "panda_link0";
+  screw_0.start_theta = 0;
+  screw_0.end_theta = 0.25;
+  screw_0.screw_msg.origin = single_request.start_pose.pose.position;
+  screw_0.screw_msg.axis.x = -1;
+  screw_0.screw_msg.is_pure_translation = true;
+
+  screw_1 = ap_planning::ScrewSegment();
+  screw_1.screw_msg.header.frame_id = "panda_link0";
+  screw_1.start_theta = 0;
+  screw_1.end_theta = 0.2;
+  screw_1.screw_msg.origin = single_request.start_pose.pose.position;
+  screw_1.screw_msg.axis.z = 1;
+  screw_1.screw_msg.is_pure_translation = true;
+
+  screw_2.screw_msg.header.frame_id = "panda_link0";
+  screw_2.start_theta = 0;
+  screw_2.end_theta = 0.25;
+  screw_2.screw_msg.origin = single_request.start_pose.pose.position;
+  screw_2.screw_msg.axis.x = 1;
+  screw_2.screw_msg.is_pure_translation = true;
+
+  single_request.screw_path.push_back(screw_0);
+  single_request.screw_path.push_back(screw_1);
+  single_request.screw_path.push_back(screw_2);
+  planning_queue.push(single_request);
+
+
   return planning_queue;
 }
 
@@ -197,15 +284,70 @@ std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
 
   // Repeat
   collision_object.id = "screw2_box1";
-  primitive.dimensions[primitive.BOX_X] = 0.5;
-  primitive.dimensions[primitive.BOX_Y] = 0.1;
-  primitive.dimensions[primitive.BOX_Z] = 0.6;
-  box_pose.position.x = -0.1;
-  box_pose.position.y = -0.25;
-  box_pose.position.z = 10.25;
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.1;
+  box_pose.position.x = 0.0;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.81;
 
   collision_object.primitives.push_back(primitive);
   collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  collision_object.id = "screw3_box1";
+  primitive.dimensions[primitive.BOX_X] = 0.1;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 1.5;
+  box_pose.position.x = -0.3;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.75;
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+
+  primitive.dimensions[primitive.BOX_X] = 0.75;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 0.2;
+  box_pose.position.x = 0.75;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 0.1;
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+
+  primitive.dimensions[primitive.BOX_X] = 0.75;
+  primitive.dimensions[primitive.BOX_Y] = 0.7;
+  primitive.dimensions[primitive.BOX_Z] = 0.1;
+  box_pose.position.x = 0.5*0.75 - 0.3;
+  box_pose.position.y = 0.5*0.7 + 0.05;
+  box_pose.position.z = 0.7;
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  collision_object.id = "screw4_box1";
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 1.5;
+  box_pose.position.x = 0.0;
+  box_pose.position.y = -0.2;
+  box_pose.position.z = 0.75;
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+
+  primitive.dimensions[primitive.BOX_X] = 1.5;
+  primitive.dimensions[primitive.BOX_Y] = 0.1;
+  primitive.dimensions[primitive.BOX_Z] = 0.4;
+  box_pose.position.x = 0.0;
+  box_pose.position.y = 0.3;
+  box_pose.position.z = 0.2;
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  
   output.push(collision_object);
   collision_object.primitives.clear();
   collision_object.primitive_poses.clear();

@@ -19,14 +19,8 @@ bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
 
   // Set the error code
   if (contacts.size() == 0) {
-    ROS_DEBUG_STREAM("All good in CB");
     error_code.val = moveit_msgs::MoveItErrorCodes::SUCCESS;
   } else {
-    ROS_DEBUG_STREAM("Contacts: " << contacts.size());
-    for (const auto &contact : contacts) {
-      ROS_DEBUG_STREAM(contact.first.first << "' and '"
-                                           << contact.first.second);
-    }
     error_code.val = moveit_msgs::MoveItErrorCodes::NO_IK_SOLUTION;
   }
   return true;
