@@ -35,6 +35,7 @@
 #include <moveit/planning_scene_monitor/planning_scene_monitor.h>
 #include <ros/ros.h>
 #include <ap_planning/ik_solver_base.hpp>
+#include <ap_planning/state_sampling.hpp>
 
 namespace ap_planning {
 
@@ -50,7 +51,7 @@ const double CONDITION_NUM_LIMIT = 100;
 class IKSolver : public IKSolverBase {
  public:
   IKSolver(){};
-  ~IKSolver() { cleanUp(); };
+  ~IKSolver() { planning_scene_.reset(); };
 
   /** Initializes the solver by looking up ROS parameters for:
    *
@@ -62,7 +63,8 @@ class IKSolver : public IKSolverBase {
    * @param nh Parameters are considered to be namespaced to this node
    * @return False if the parameters couldn't be found, true otherwise
    */
-  bool initialize(const ros::NodeHandle& nh) override;
+  bool initialize(const ros::NodeHandle& nh, const std::string& move_group_name,
+                  const std::string& robot_description_name) override;
 
   /** Solves 1 IK request
    *
@@ -74,7 +76,7 @@ class IKSolver : public IKSolverBase {
    * @param point The trajectory point to fill out
    * @return True if a solution was found, false otherwise
    */
-  bool solveIK(const moveit::core::JointModelGroup* jmg,
+  bool solveIK(const std::shared_ptr<moveit::core::JointModelGroup>& jmg,
                const geometry_msgs::Pose& target_pose,
                const std::string& ee_frame,
                moveit::core::RobotState& robot_state,
@@ -93,7 +95,7 @@ class IKSolver : public IKSolverBase {
   ap_planning::Result verifyTransition(
       const trajectory_msgs::JointTrajectoryPoint& point_a,
       const trajectory_msgs::JointTrajectoryPoint& point_b,
-      const moveit::core::JointModelGroup* jmg,
+      const std::shared_ptr<moveit::core::JointModelGroup>& jmg,
       const moveit::core::RobotState& state_b) override;
 
   /** Plans a joint trajectory based on an affordance trajectory
@@ -105,6 +107,7 @@ class IKSolver : public IKSolverBase {
   ap_planning::Result plan(const APPlanningRequest& req,
                            APPlanningResponse& res) override;
 
+ protected:
   /** Plans a joint trajectory based on an affordance trajectory
    *
    *
@@ -119,13 +122,8 @@ class IKSolver : public IKSolverBase {
       const std::vector<double>& start_state, const std::string& ee_name,
       APPlanningResponse& res) override;
 
- protected:
-  affordance_primitives::APScrewExecutor screw_executor_;
-
   // This holds the kinematics solver
   kinematics::KinematicsBasePtr ik_solver_;
-
-  moveit::core::RobotStatePtr kinematic_state_;
 
   planning_scene_monitor::PlanningSceneMonitorPtr psm_;
   std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
@@ -137,11 +135,8 @@ class IKSolver : public IKSolverBase {
   double condition_num_limit_;
 
   void setUp(APPlanningResponse& res);
-  void cleanUp();
 
-  size_t calculateNumWaypoints(
-      const affordance_primitive_msgs::ScrewStamped& screw_msg,
-      const geometry_msgs::TransformStamped& tf_msg, const double theta);
+  double calculateSegmentSpacing(const ScrewSegment& segment);
 
   /** General check to make sure 2 joint states are relatively close together
    *

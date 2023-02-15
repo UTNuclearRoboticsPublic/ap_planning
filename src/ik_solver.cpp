@@ -1,23 +1,14 @@
-#include <bio_ik/bio_ik.h>
 #include <affordance_primitives/screw_model/screw_execution.hpp>
 #include <ap_planning/ik_solver.hpp>
 
 #include <pluginlib/class_list_macros.h>
 
 namespace ap_planning {
-bool IKSolver::initialize(const ros::NodeHandle& nh) {
+bool IKSolver::initialize(const ros::NodeHandle& nh,
+                          const std::string& move_group_name,
+                          const std::string& robot_description_name) {
   nh_ = nh;
   const std::string n_name = ros::this_node::getName();
-
-  // Get robot description and load model
-  std::string robot_description_name, move_group_name;
-  nh_.param<std::string>(n_name + "/robot_description_name",
-                         robot_description_name, "/robot_description");
-  if (!nh_.getParam(n_name + "/move_group_name", move_group_name)) {
-    ROS_ERROR_STREAM("Could not find parameter: "
-                     << std::string(n_name + "/move_group_name"));
-    return false;
-  }
 
   // Get planning parameters
   nh_.param<double>(n_name + "/waypoint_dist", waypoint_dist_, WAYPOINT_DIST);
@@ -34,7 +25,8 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
     ROS_ERROR("Could not load RobotModel");
     return false;
   }
-  joint_model_group_ = kinematic_model_->getJointModelGroup(move_group_name);
+  joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
+      *kinematic_model_->getJointModelGroup(move_group_name));
   if (!joint_model_group_) {
     ROS_ERROR_STREAM("Could not find joint model group: " << move_group_name);
     return false;
@@ -44,7 +36,7 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
   if (!ik_solver_) {
     ROS_ERROR("Could not get IK Solver");
     return false;
-  } else if (!ik_solver_->supportsGroup(joint_model_group_)) {
+  } else if (!ik_solver_->supportsGroup(joint_model_group_.get())) {
     ROS_ERROR_STREAM(
         "IK Solver doesn't support group: " << joint_model_group_->getName());
     return false;
@@ -53,6 +45,8 @@ bool IKSolver::initialize(const ros::NodeHandle& nh) {
   // Set up planning scene monitor
   psm_ = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(
       robot_description_name);
+  psm_->startSceneMonitor();
+  psm_->startStateMonitor();
 
   return true;
 }
@@ -64,16 +58,7 @@ void IKSolver::setUp(APPlanningResponse& res) {
   res.percentage_complete = 0.0;
   res.trajectory_is_valid = false;
   res.path_length = -1;
-
-  // Get the new planning scene
-  if (!planning_scene_) {
-    psm_->requestPlanningSceneState();
-    planning_scene_ =
-        std::make_shared<planning_scene_monitor::LockedPlanningSceneRO>(psm_);
-  }
 }
-
-void IKSolver::cleanUp() { planning_scene_.reset(); }
 
 bool IKSolver::checkPointsAreClose(
     const trajectory_msgs::JointTrajectoryPoint& point_a,
@@ -95,7 +80,7 @@ bool IKSolver::checkPointsAreClose(
 ap_planning::Result IKSolver::verifyTransition(
     const trajectory_msgs::JointTrajectoryPoint& point_a,
     const trajectory_msgs::JointTrajectoryPoint& point_b,
-    const moveit::core::JointModelGroup* jmg,
+    const std::shared_ptr<moveit::core::JointModelGroup>& jmg,
     const moveit::core::RobotState& state_b) {
   // Do broad face check to avoid joint reconfigurations
   if (!checkPointsAreClose(point_a, point_b)) {
@@ -126,7 +111,7 @@ ap_planning::Result IKSolver::verifyTransition(
   }
 
   // Check for a singular position
-  Eigen::JacobiSVD<Eigen::MatrixXd> svd(state_b.getJacobian(jmg));
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(state_b.getJacobian(jmg.get()));
   const double cond_number =
       svd.singularValues()[0] /
       svd.singularValues()[svd.singularValues().size() - 1];
@@ -138,21 +123,21 @@ ap_planning::Result IKSolver::verifyTransition(
   return ap_planning::SUCCESS;
 }
 
-bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
-                       const geometry_msgs::Pose& target_pose,
-                       const std::string& ee_frame,
-                       moveit::core::RobotState& robot_state,
-                       trajectory_msgs::JointTrajectoryPoint& point) {
+bool IKSolver::solveIK(
+    const std::shared_ptr<moveit::core::JointModelGroup>& jmg,
+    const geometry_msgs::Pose& target_pose, const std::string& ee_frame,
+    moveit::core::RobotState& robot_state,
+    trajectory_msgs::JointTrajectoryPoint& point) {
   // Set up the validation callback to make sure we don't collide with the
   // environment
   kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
-      [this, jmg, robot_state](const geometry_msgs::Pose& pose,
-                               const std::vector<double>& joints,
-                               moveit_msgs::MoveItErrorCodes& error_code) {
-        auto state_cpy = robot_state;
-        state_cpy.setJointGroupPositions(jmg, joints);
+      [this, &jmg, &robot_state](const geometry_msgs::Pose& pose,
+                                 const std::vector<double>& joints,
+                                 moveit_msgs::MoveItErrorCodes& error_code) {
+        robot_state.setJointGroupPositions(jmg.get(), joints);
+        robot_state.update(true);
         collision_detection::CollisionResult::ContactMap contacts;
-        (*planning_scene_)->getCollidingPairs(contacts, state_cpy);
+        (*planning_scene_)->getCollidingPairs(contacts, robot_state);
 
         if (contacts.size() == 0) {
           error_code.val = moveit_msgs::MoveItErrorCodes::SUCCESS;
@@ -163,7 +148,7 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
 
   // Solve the IK
   std::vector<double> ik_solution, seed_state;
-  robot_state.copyJointGroupPositions(jmg, seed_state);
+  robot_state.copyJointGroupPositions(jmg.get(), seed_state);
   moveit_msgs::MoveItErrorCodes err;
   if (!ik_solver_->searchPositionIK(target_pose, seed_state, 0.05, ik_solution,
                                     ik_callback_fn, err)) {
@@ -172,11 +157,11 @@ bool IKSolver::solveIK(const moveit::core::JointModelGroup* jmg,
   }
 
   // Update the robot state
-  robot_state.setJointGroupPositions(jmg, ik_solution);
+  robot_state.setJointGroupPositions(jmg.get(), ik_solution);
   robot_state.update();
 
   // Copy to the point
-  robot_state.copyJointGroupPositions(jmg, point.positions);
+  robot_state.copyJointGroupPositions(jmg.get(), point.positions);
 
   return true;
 }
@@ -196,14 +181,15 @@ ap_planning::Result IKSolver::plan(
   setUp(res);
 
   // Make a new robot state and copy the starting state
-  moveit::core::RobotStatePtr current_state(
-      new moveit::core::RobotState(kinematic_model_));
-  current_state->setJointGroupPositions(joint_model_group_, start_state);
+  moveit::core::RobotState current_state =
+      *(psm_->getStateMonitor()->getCurrentState());
+  current_state.setJointGroupPositions(joint_model_group_.get(), start_state);
+  current_state.update(true);
 
   // We will check the first IK solution is close to the starting state
   trajectory_msgs::JointTrajectoryPoint starting_point;
-  current_state->copyJointGroupPositions(joint_model_group_,
-                                         starting_point.positions);
+  current_state.copyJointGroupPositions(joint_model_group_.get(),
+                                        starting_point.positions);
 
   // Figure out how many waypoints there are
   const size_t num_waypoints = affordance_traj.trajectory.size();
@@ -214,8 +200,7 @@ ap_planning::Result IKSolver::plan(
   for (auto& wp : affordance_traj.trajectory) {
     trajectory_msgs::JointTrajectoryPoint point;
     point.time_from_start = wp.time_from_start;
-    if (!solveIK(joint_model_group_, wp.pose, ee_name, *current_state, point)) {
-      cleanUp();
+    if (!solveIK(joint_model_group_, wp.pose, ee_name, current_state, point)) {
       return ap_planning::NO_IK_SOLUTION;
     }
     if (res.joint_trajectory.points.size() < 1) {
@@ -223,15 +208,13 @@ ap_planning::Result IKSolver::plan(
         ROS_ERROR_STREAM("Points are not close!\n"
                          << starting_point << "\n\n"
                          << point);
-        cleanUp();
         return ap_planning::INVALID_TRANSITION;
       }
     } else {
       auto transition_result =
           verifyTransition(res.joint_trajectory.points.back(), point,
-                           joint_model_group_, *current_state);
+                           joint_model_group_, current_state);
       if (transition_result != ap_planning::SUCCESS) {
-        cleanUp();
         return transition_result;
       }
     }
@@ -245,7 +228,6 @@ ap_planning::Result IKSolver::plan(
   res.trajectory_is_valid = true;
   res.path_length = -1;  // Not implemented
 
-  cleanUp();
   return ap_planning::SUCCESS;
 }
 
@@ -256,125 +238,155 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     return INVALID_GOAL;
   }
 
+  planning_scene_.reset();
+  psm_->requestPlanningSceneState();
+  planning_scene_ =
+      std::make_shared<planning_scene_monitor::LockedPlanningSceneRO>(psm_);
+
   setUp(res);
 
-  // Make a new robot state
-  moveit::core::RobotStatePtr current_state(
-      new moveit::core::RobotState(kinematic_model_));
-  std::vector<double> starting_joint_config = req.start_joint_state;
+  // Set up a constraints class
+  affordance_primitives::ChainedScrews constraints = req.toConstraint();
 
-  if (req.start_joint_state.size() != joint_model_group_->getVariableCount()) {
-    // Use IK to find the first joint state
-    const auto first_pose = req.start_pose.pose;
-    trajectory_msgs::JointTrajectoryPoint point;
-    bool found_start_config = false;
-    for (size_t i = 0; i < 5; ++i) {
-      current_state->setToRandomPositions();
-      if (solveIK(joint_model_group_, first_pose, req.ee_frame_name,
-                  *current_state, point)) {
-        found_start_config = true;
-        break;
-      }
+  // Make a new robot state
+  moveit::core::RobotStatePtr current_state =
+      std::make_shared<moveit::core::RobotState>(
+          *(psm_->getStateMonitor()->getCurrentState()));
+  std::vector<double> starting_joint_config = req.start_joint_state;
+  std::vector<std::vector<double>> starts;
+
+  geometry_msgs::Pose first_pose;
+  const bool passed_start_joint_state =
+      req.start_joint_state.size() == joint_model_group_->getVariableCount();
+  if (passed_start_joint_state) {
+    // Copy the starting position
+    current_state->setJointGroupPositions(joint_model_group_.get(),
+                                          req.start_joint_state);
+    if (!current_state->knowsFrameTransform(req.ee_frame_name)) {
+      ROS_WARN_STREAM("Unknown EE name");
+      return INVALID_GOAL;
     }
-    if (!found_start_config) {
-      cleanUp();
+    constraints.setReferenceFrame(
+        current_state->getFrameTransform(req.ee_frame_name));
+    first_pose = tf2::toMsg(constraints.referenceFrame());
+  } else {
+    // Calculate the starting pose
+    const auto tf_start_pose = constraints.getPose(constraints.lambdaMin());
+    first_pose = tf2::toMsg(tf_start_pose);
+
+    // Calculate a bunch of starting joint configs
+    size_t i = 0;
+    constexpr size_t num_starts = 20;
+    while (starts.size() < num_starts && i < 2 * num_starts && ros::ok()) {
+      // Every time, we set to random states to get variety in solutions
+      current_state->setToRandomPositions(joint_model_group_.get());
+      current_state->update(true);
+
+      // Try to add a goal configuration
+      increaseStateList(joint_model_group_, current_state, *planning_scene_,
+                        ik_solver_, first_pose, starts);
+
+      i++;
+    }
+    if (starts.size() == 0) {
+      ROS_WARN_STREAM("No initial IK solution found");
       return ap_planning::NO_IK_SOLUTION;
     }
-    current_state->copyJointGroupPositions(joint_model_group_,
-                                           starting_joint_config);
-  } else {
-    // Copy the starting position
-    current_state->setJointGroupPositions(joint_model_group_,
-                                          req.start_joint_state);
   }
 
-  // We will check the first IK solution is close to the starting state
-  trajectory_msgs::JointTrajectoryPoint starting_point;
-  current_state->copyJointGroupPositions(joint_model_group_,
-                                         starting_point.positions);
-  current_state->update(true);
+  // Create the trajectory
+  affordance_primitive_msgs::AffordanceTrajectory affordance_traj;
+  affordance_traj.header.frame_id =
+      req.screw_path.front().screw_msg.header.frame_id;
+  double time_now = 0;
 
-  // Create an AP Goal to use internally
-  affordance_primitives::AffordancePrimitiveGoal ap_goal;
-  ap_goal.moving_frame_source = ap_goal.PROVIDED;
-  ap_goal.moving_to_task_frame = tf2::eigenToTransform(
-      current_state->getGlobalLinkTransform(req.ee_frame_name).inverse());
-  ap_goal.moving_to_task_frame.header.frame_id = req.ee_frame_name;
-  ap_goal.moving_to_task_frame.child_frame_id =
-      kinematic_model_->getModelFrame();
+  affordance_primitive_msgs::AffordanceWaypoint first_wp;
+  first_wp.time_from_start = ros::Duration().fromSec(time_now);
+  first_wp.pose = first_pose;
+  affordance_traj.trajectory.push_back(first_wp);
 
-  // Go through each screw axis and add it to the path
-  affordance_primitives::AffordanceTrajectory full_trajectory;
-  ros::Duration duration_shift(0);
-  for (const auto& segment : req.screw_path) {
-    ap_goal.screw = segment.screw_msg;
-    ap_goal.screw_distance = segment.theta;
+  // Go through the screw segments
+  const double theta_dot = 0.1;  // TODO do this better
+  double lambda = 0;
+  auto phi = constraints.lowerBounds();
+  for (size_t i = 0; i < constraints.size(); ++i) {
+    // Figure out lambda spacing on this axis
+    const double lambda_step = calculateSegmentSpacing(req.screw_path.at(i));
+    lambda += lambda_step;
+    time_now += lambda_step / theta_dot;
 
-    // TODO: think about getting this in as a param
-    ap_goal.theta_dot = 0.1;
+    // Calculate when we should stop for this segment
+    phi.at(i) = constraints.upperBounds().at(i);
+    const double lambda_max = constraints.getLambda(phi);
 
-    // Check the tf was valid
-    std::optional<geometry_msgs::TransformStamped> tfmsg_moving_to_task =
-        screw_executor_.getTFInfo(ap_goal);
-    if (!tfmsg_moving_to_task.has_value()) {
-      cleanUp();
-      return ap_planning::INVALID_GOAL;
+    // Go through and calculate all the poses for this point
+    while (lambda <= lambda_max && ros::ok()) {
+      const auto waypoint_now = constraints.getPose(lambda);
+      lambda += lambda_step;
+      time_now += lambda_step / theta_dot;
+
+      // Stuff into ROS type
+      affordance_primitive_msgs::AffordanceWaypoint this_wp;
+      this_wp.time_from_start = ros::Duration().fromSec(time_now);
+      this_wp.pose = tf2::toMsg(waypoint_now);
+      affordance_traj.trajectory.push_back(this_wp);
     }
-
-    // Figure out how many waypoints to do
-    const size_t num_waypoints = calculateNumWaypoints(
-        segment.screw_msg, *tfmsg_moving_to_task, segment.theta);
-
-    // Generate the affordance trajectory
-    std::optional<affordance_primitives::AffordanceTrajectory> ap_trajectory =
-        screw_executor_.getTrajectoryCommands(ap_goal, num_waypoints);
-    if (!ap_trajectory.has_value()) {
-      cleanUp();
-      return ap_planning::INVALID_GOAL;
-    }
-
-    // Add trajectory
-    for (const auto& wp : ap_trajectory->trajectory) {
-      full_trajectory.trajectory.push_back(wp);
-      full_trajectory.trajectory.back().time_from_start += duration_shift;
-    }
-
-    // Set up for next segment
-    duration_shift = full_trajectory.trajectory.back().time_from_start;
-    duration_shift += ap_trajectory->trajectory.at(1).time_from_start;
-
-    Eigen::Isometry3d last_wp;
-    tf2::fromMsg(full_trajectory.trajectory.back().pose, last_wp);
-    ap_goal.moving_to_task_frame = tf2::eigenToTransform(last_wp.inverse());
-    ap_goal.moving_to_task_frame.header.frame_id = req.ee_frame_name;
-    ap_goal.moving_to_task_frame.child_frame_id =
-        kinematic_model_->getModelFrame();
   }
 
-  // Do the planning
-  return plan(full_trajectory, starting_joint_config, req.ee_frame_name, res);
+  // If pass a joint state, just plan with that one
+  if (passed_start_joint_state) {
+    return plan(affordance_traj, starting_joint_config, req.ee_frame_name, res);
+  }
+
+  // Otherwise, plan from multiple
+  ap_planning::APPlanningResponse this_response;
+  while (ros::ok() && !starts.empty()) {
+    auto this_start = starts.back();
+    starts.pop_back();
+
+    // Do the plan
+    auto result =
+        plan(affordance_traj, this_start, req.ee_frame_name, this_response);
+
+    // If success, just get out ASAP
+    if (result == ap_planning::SUCCESS) {
+      res = this_response;
+      return result;
+    }
+
+    // If better than previous, update it
+    if (this_response.percentage_complete > res.percentage_complete) {
+      res = this_response;
+    }
+  }
+
+  // If we are here, we did not find a valid plan, but res is the best found
+  return ap_planning::PLANNING_FAIL;
 }
 
-size_t IKSolver::calculateNumWaypoints(
-    const affordance_primitive_msgs::ScrewStamped& screw_msg,
-    const geometry_msgs::TransformStamped& tf_msg, const double theta) {
+double IKSolver::calculateSegmentSpacing(const ScrewSegment& segment) {
+  const double theta = segment.end_theta - segment.start_theta;
+
   // Pure translation case
-  if (screw_msg.is_pure_translation) {
-    return ceil(fabs(theta) / waypoint_dist_);
+  if (segment.screw_msg.is_pure_translation) {
+    const double num_waypoints = ceil(theta / waypoint_dist_);
+    return theta / num_waypoints;
   }
 
-  // Find the distance from moving frame to screw axis
-  Eigen::Vector3d tf_dist, screw_origin_dist;
-  tf2::fromMsg(tf_msg.transform.translation, tf_dist);
-  tf2::fromMsg(screw_msg.origin, screw_origin_dist);
-  const double screw_distance = (tf_dist + screw_origin_dist).norm();
+  Eigen::Vector3d screw_dist, axis;
+  tf2::fromMsg(segment.screw_msg.origin, screw_dist);
+  tf2::fromMsg(segment.screw_msg.axis, axis);
 
-  // Calculate min waypoints for distance limiting and angle limiting
-  const size_t wps_ang = ceil(fabs(theta) / waypoint_ang_);
-  const size_t wps_lin = ceil(fabs(theta) * screw_distance / waypoint_dist_);
+  // Project origin distance onto axis plane, to get distance to axis
+  screw_dist -= (screw_dist.dot(axis)) / (axis.squaredNorm()) * axis;
 
-  // Return whichever required more waypoints
-  return std::max(wps_ang, wps_lin);
+  // Calculate the number of waypoints we need for angular and linear
+  const double wps_ang = ceil(theta / waypoint_ang_);
+  const double wps_lin = ceil(theta * screw_dist.norm() / waypoint_ang_);
+
+  // Use whichever needed more
+  const double num_waypoints = std::max(wps_ang, wps_lin);
+  return theta / num_waypoints;
 }
 }  // namespace ap_planning
 

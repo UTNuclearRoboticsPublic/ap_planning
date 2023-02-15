@@ -1,5 +1,4 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
-#include <affordance_primitives/screw_planning/screw_planning.hpp>
 #include <ap_planning/state_utils.hpp>
 
 namespace ap_planning {
@@ -53,37 +52,30 @@ double ScrewGoal::distanceGoal(const ob::State *state) const {
   const ob::RealVectorStateSpace::StateType &screw_state =
       *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
 
-  // TODO make this generic for a vector of screws
-  return screw_bounds_.high[0] - screw_state[0];
+  Eigen::VectorXd error(screw_bounds_.high.size());
+  for (size_t i = 0; i < screw_bounds_.high.size(); ++i) {
+    error(i) = screw_bounds_.high[i] - screw_state[i];
+  }
+  return error.norm();
 }
 
 ScrewValidityChecker::ScrewValidityChecker(const ob::SpaceInformationPtr &si)
-    : ob::StateValidityChecker(si), robot_bounds_(1), screw_bounds_(1) {
+    : ob::StateValidityChecker(si), robot_bounds_(1) {
   // Get move group parameter
   std::string mg_string;
   si->getStateSpace()->params().getParam("move_group", mg_string);
   si->getStateSpace()->params().getParam("ee_frame_name", ee_frame_name_);
 
-  kinematic_state_ =
-      std::make_shared<moveit::core::RobotState>(kinematic_model);
-  kinematic_state_->setToDefaultValues();
+  kinematic_state_ = std::make_shared<moveit::core::RobotState>(
+      *(planning_scene->getPlanningSceneMonitor()
+            ->getStateMonitor()
+            ->getCurrentState()));
 
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
       *kinematic_model->getJointModelGroup(mg_string));
 
-  std::string screw_msg_string, pose_msg_string;
-  si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
-  si->getStateSpace()->params().getParam("pose_param", pose_msg_string);
-  screw_axis_.setScrewAxis(
-      *affordance_primitives::strToScrewMsg(screw_msg_string));
-  tf2::fromMsg(affordance_primitives::strToPose(pose_msg_string)->pose,
-               start_pose_);
-
   ob::CompoundStateSpace *compound_space =
       si_->getStateSpace()->as<ob::CompoundStateSpace>();
-  screw_bounds_ = compound_space->getSubspace(0)
-                      ->as<ob::RealVectorStateSpace>()
-                      ->getBounds();
   robot_bounds_ = compound_space->getSubspace(1)
                       ->as<ob::RealVectorStateSpace>()
                       ->getBounds();
@@ -98,9 +90,9 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
       *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
 
   // Check screw bounds
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    if (screw_state[i] > screw_bounds_.high[i] ||
-        screw_state[i] < screw_bounds_.low[i]) {
+  for (size_t i = 0; i < constraints->size(); ++i) {
+    if (screw_state[i] > constraints->upperBounds()[i] ||
+        screw_state[i] < constraints->lowerBounds()[i]) {
       return false;
     }
   }
@@ -121,18 +113,23 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
   kinematic_state_->update(true);
   auto this_state_pose = kinematic_state_->getFrameTransform(ee_frame_name_);
 
-  // Make sure the current pose is on the required screw axis
-  Eigen::VectorXd error(6);
-  error.setZero();
-  if (!affordance_primitives::screwConstraint(
-          this_state_pose, start_pose_, screw_axis_,
-          std::make_pair(screw_bounds_.low[0], screw_bounds_.high[0]),
-          screw_state[0], error)) {
+  // Call constraintFn
+  affordance_primitives::ScrewConstraintSolution sol;
+  if (!constraints->constraintFn(this_state_pose, joint_state, sol)) {
     return false;
   }
 
-  if (error.norm() > 0.005) {
+  // Check the error
+  if (sol.error > constraints->tolerance()) {
     return false;
+  }
+
+  // Check to make sure the screw state matches expected
+  for (size_t i = 0; i < constraints->size(); ++i) {
+    const double dist = fabs(sol.solved_phi[i] - screw_state[i]);
+    if (dist > 0.005) {
+      return false;
+    }
   }
 
   // Check for collisions

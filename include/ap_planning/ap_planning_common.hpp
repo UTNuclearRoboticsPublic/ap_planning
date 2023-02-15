@@ -35,6 +35,7 @@
 #include <affordance_primitive_msgs/ScrewStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <trajectory_msgs/JointTrajectory.h>
+#include <affordance_primitives/screw_planning/chained_screws.hpp>
 
 #include <string>
 #include <vector>
@@ -75,7 +76,8 @@ enum PlannerType { PRM, PRMstar, RRT, RRTconnect };
  */
 struct ScrewSegment {
   affordance_primitive_msgs::ScrewStamped screw_msg;
-  double theta;
+  double start_theta;
+  double end_theta;
 };
 
 /**
@@ -95,6 +97,12 @@ struct APPlanningRequest {
   // Only set one of these
   std::vector<double> start_joint_state;
   geometry_msgs::PoseStamped start_pose;
+
+  /** Converts the request to a Constraint object
+   *
+   * TODO: make this generic, not just for derived Chained case
+   */
+  affordance_primitives::ChainedScrews toConstraint() const;
 };
 
 /**

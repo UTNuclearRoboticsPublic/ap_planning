@@ -37,6 +37,7 @@
 #include <ompl/geometric/planners/prm/PRMstar.h>
 #include <ompl/geometric/planners/rrt/RRT.h>
 #include <ompl/geometric/planners/rrt/RRTConnect.h>
+#include <affordance_primitives/screw_planning/screw_constraint.hpp>
 #include <ap_planning/ap_planning_common.hpp>
 #include <ap_planning/state_sampling.hpp>
 #include <ap_planning/state_utils.hpp>
@@ -70,9 +71,8 @@ class DSSPlanner {
  protected:
   ompl::base::StateSpacePtr state_space_;
   ompl::geometric::SimpleSetupPtr ss_;
-  affordance_primitives::ScrewAxis screw_axis_;
-  Eigen::Isometry3d goal_pose_;
-  Eigen::Isometry3d start_pose_;
+  Eigen::Isometry3d start_pose_, goal_pose_;
+  std::shared_ptr<affordance_primitives::ScrewConstraint> constraints_;
   moveit::core::RobotModelPtr kinematic_model_;
   moveit::core::RobotStatePtr kinematic_state_;
   std::shared_ptr<moveit::core::JointModelGroup> joint_model_group_;
@@ -86,8 +86,7 @@ class DSSPlanner {
   void cleanUp();
 
   bool setupStateSpace(const APPlanningRequest& req);
-  affordance_primitives::TransformStamped getStartTF(
-      const APPlanningRequest& req);
+  void getStartTF(const APPlanningRequest& req);
   bool setSpaceParameters(const APPlanningRequest& req,
                           ompl::base::StateSpacePtr& space);
   bool setSimpleSetup(const ompl::base::StateSpacePtr& space,
@@ -118,15 +117,6 @@ class DSSPlanner {
   bool findGoalStates(const APPlanningRequest& req, const size_t num_goal,
                       std::vector<std::vector<double>>& start_configs,
                       std::vector<std::vector<double>>& goal_configs);
-
-  /** Solves IK for a state and adds it to a list of valid states
-   *
-   * @param pose IK Pose
-   * @param state_list Valid poses, this wil expand if the found solution is
-   * sufficiently far from the other states in the list
-   */
-  void increaseStateList(const affordance_primitives::Pose& pose,
-                         std::vector<std::vector<double>>& state_list);
 
   /** Given a solution path, this will fill in the planning response
    *
