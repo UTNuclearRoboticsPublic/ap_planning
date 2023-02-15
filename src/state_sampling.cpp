@@ -1,5 +1,6 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <ap_planning/state_sampling.hpp>
+#include <ap_planning/state_utils.hpp>
 
 namespace ap_planning {
 
@@ -9,12 +10,12 @@ bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
                          const std::vector<double> &joints,
                          moveit_msgs::MoveItErrorCodes &error_code) {
   // Copy the IK solution to the robot state
-  auto state_cpy = robot_state;
-  state_cpy->setJointGroupPositions(jmg.get(), joints);
+  robot_state->setJointGroupPositions(jmg.get(), joints);
+  robot_state->update(true);
 
   // Check for collisions
   collision_detection::CollisionResult::ContactMap contacts;
-  ps->getCollidingPairs(contacts, *state_cpy);
+  ps->getCollidingPairs(contacts, *robot_state);
 
   // Set the error code
   if (contacts.size() == 0) {
@@ -25,8 +26,38 @@ bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
   return true;
 }
 
+void increaseStateList(const moveit::core::JointModelGroupPtr jmg,
+                       const moveit::core::RobotStatePtr robot_state,
+                       const planning_scene_monitor::LockedPlanningSceneRO ps,
+                       const kinematics::KinematicsBasePtr ik_solver,
+                       const affordance_primitives::Pose &pose,
+                       std::vector<std::vector<double>> &state_list) {
+  // Set up IK callback
+  kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
+      [&jmg, &robot_state, &ps](const geometry_msgs::Pose &pose,
+                                const std::vector<double> &joints,
+                                moveit_msgs::MoveItErrorCodes &error_code) {
+        ikCallbackFnAdapter(jmg, robot_state, ps, joints, error_code);
+      };
+
+  // Try to solve the IK
+  std::vector<double> seed_state, ik_solution;
+  moveit_msgs::MoveItErrorCodes err;
+  kinematics::KinematicsQueryOptions opts;
+  robot_state->copyJointGroupPositions(jmg.get(), seed_state);
+  if (!ik_solver->searchPositionIK(pose, seed_state, 0.05, ik_solution,
+                                   ik_callback_fn, err, opts)) {
+    return;
+  }
+
+  // If the solution is valid, add it to the list
+  if (checkDuplicateState(state_list, ik_solution)) {
+    state_list.push_back(ik_solution);
+  }
+}
+
 ScrewValidSampler::ScrewValidSampler(const ob::SpaceInformation *si)
-    : ValidStateSampler(si), screw_bounds_(1) {
+    : ValidStateSampler(si) {
   name_ = "screw_valid_sampler";
 
   // Get move group parameters
@@ -34,29 +65,15 @@ ScrewValidSampler::ScrewValidSampler(const ob::SpaceInformation *si)
   si->getStateSpace()->params().getParam("move_group", mg_string);
 
   // Load robot
-  kinematic_state_ =
-      std::make_shared<moveit::core::RobotState>(kinematic_model);
-  kinematic_state_->setToDefaultValues();
+  kinematic_state_ = std::make_shared<moveit::core::RobotState>(
+      *(planning_scene->getPlanningSceneMonitor()
+            ->getStateMonitor()
+            ->getCurrentState()));
 
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
       *kinematic_model->getJointModelGroup(mg_string));
 
   ik_solver_ = joint_model_group_->getSolverInstance();
-
-  std::string screw_msg_string, pose_msg_string;
-  si->getStateSpace()->params().getParam("screw_param", screw_msg_string);
-  si->getStateSpace()->params().getParam("pose_param", pose_msg_string);
-
-  screw_axis_.setScrewAxis(
-      *affordance_primitives::strToScrewMsg(screw_msg_string));
-  tf2::fromMsg(affordance_primitives::strToPose(pose_msg_string)->pose,
-               start_pose_);
-
-  ob::CompoundStateSpace *compound_space =
-      si_->getStateSpace()->as<ob::CompoundStateSpace>();
-  screw_bounds_ = compound_space->getSubspace(0)
-                      ->as<ob::RealVectorStateSpace>()
-                      ->getBounds();
 }
 
 bool ScrewValidSampler::sample(ob::State *state) {
@@ -68,15 +85,13 @@ bool ScrewValidSampler::sample(ob::State *state) {
       *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
 
   // Draw a random screw state within bounds
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    screw_state[i] =
-        rng_.uniformReal(screw_bounds_.low[i], screw_bounds_.high[i]);
+  auto sampled_state = constraints->sampleUniformState();
+  for (size_t i = 0; i < sampled_state.size(); ++i) {
+    screw_state[i] = sampled_state[i];
   }
 
   // Get the pose of this theta
-  // TODO: multiple screw axis?
-  Eigen::Isometry3d current_pose =
-      screw_axis_.getTF(screw_state[0]) * start_pose_;
+  Eigen::Isometry3d current_pose = constraints->getPose(sampled_state);
   geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
   // Set up IK callback
@@ -117,33 +132,20 @@ ob::ValidStateSamplerPtr allocScrewValidSampler(
 }
 
 ScrewSampler::ScrewSampler(const ob::StateSpace *state_space)
-    : StateSampler(state_space), screw_bounds_(state_space->getDimension()) {
+    : StateSampler(state_space) {
   // Get move group parameters
   std::string mg_string;
   state_space->params().getParam("move_group", mg_string);
 
-  kinematic_state_ =
-      std::make_shared<moveit::core::RobotState>(kinematic_model);
-  kinematic_state_->setToDefaultValues();
+  kinematic_state_ = std::make_shared<moveit::core::RobotState>(
+      *(planning_scene->getPlanningSceneMonitor()
+            ->getStateMonitor()
+            ->getCurrentState()));
 
   joint_model_group_ = std::make_shared<moveit::core::JointModelGroup>(
       *kinematic_model->getJointModelGroup(mg_string));
 
   ik_solver_ = joint_model_group_->getSolverInstance();
-
-  auto compound_space = state_space->as<ob::CompoundStateSpace>();
-  screw_bounds_ = compound_space->getSubspace(0)
-                      ->as<ob::RealVectorStateSpace>()
-                      ->getBounds();
-
-  std::string screw_msg_string, pose_msg_string;
-  state_space->params().getParam("screw_param", screw_msg_string);
-  state_space->params().getParam("pose_param", pose_msg_string);
-
-  screw_axis_.setScrewAxis(
-      *affordance_primitives::strToScrewMsg(screw_msg_string));
-  tf2::fromMsg(affordance_primitives::strToPose(pose_msg_string)->pose,
-               start_pose_);
 }
 
 void ScrewSampler::sample(ob::State *state,
@@ -161,9 +163,7 @@ void ScrewSampler::sample(ob::State *state,
   }
 
   // Get the pose of this theta
-  // TODO: multiple screw axis?
-  Eigen::Isometry3d current_pose =
-      screw_axis_.getTF(screw_state[0]) * start_pose_;
+  Eigen::Isometry3d current_pose = constraints->getPose(screw_theta);
   geometry_msgs::Pose pose_msg = tf2::toMsg(current_pose);
 
   // Set up IK callback
@@ -198,16 +198,7 @@ void ScrewSampler::sample(ob::State *state,
 }
 
 void ScrewSampler::sampleUniform(ob::State *state) {
-  std::vector<double> screw_theta;
-  screw_theta.reserve(screw_bounds_.low.size());
-
-  // Draw random samples uniformly over the range
-  for (size_t i = 0; i < screw_bounds_.low.size(); ++i) {
-    screw_theta.push_back(
-        rng_.uniformReal(screw_bounds_.low[i], screw_bounds_.high[i]));
-  }
-
-  sample(state, screw_theta);
+  sample(state, constraints->sampleUniformState());
 }
 
 void ScrewSampler::sampleUniformNear(ob::State *state, const ob::State *near,
@@ -217,13 +208,13 @@ void ScrewSampler::sampleUniformNear(ob::State *state, const ob::State *near,
   const ob::RealVectorStateSpace::StateType &screw_state =
       *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
 
-  // Calculate a new screw theta at the proper distance and within bounds
-  double screw_dist =
-      std::max(std::min(screw_state[0] + distance, screw_bounds_.high[0]),
-               screw_bounds_.low[0]);
+  // Extract the state
+  std::vector<double> screw_theta(constraints->size());
+  for (size_t i = 0; i < constraints->size(); ++i) {
+    screw_theta[i] = screw_state[i];
+  }
 
-  std::vector<double> screw_theta{screw_dist};
-  sample(state, screw_theta);
+  sample(state, constraints->sampleUniformStateNear(screw_theta, distance));
 }
 
 void ScrewSampler::sampleGaussian(ob::State *state, const ob::State *mean,
@@ -233,13 +224,13 @@ void ScrewSampler::sampleGaussian(ob::State *state, const ob::State *mean,
   const ob::RealVectorStateSpace::StateType &screw_state =
       *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
 
-  // Calculate a new theta based on Gaussian distribution
-  double screw_dist = rng_.gaussian(screw_state[0], stdDev);
-  screw_dist = std::max(std::min(screw_dist, screw_bounds_.high[0]),
-                        screw_bounds_.low[0]);
+  // Extract the state
+  std::vector<double> screw_theta(constraints->size());
+  for (size_t i = 0; i < constraints->size(); ++i) {
+    screw_theta[i] = screw_state[i];
+  }
 
-  std::vector<double> screw_theta{screw_dist};
-  sample(state, screw_theta);
+  sample(state, constraints->sampleGaussianStateNear(screw_theta, stdDev));
 }
 
 ob::StateSamplerPtr allocScrewSampler(const ob::StateSpace *state_space) {

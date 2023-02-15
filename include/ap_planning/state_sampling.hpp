@@ -40,12 +40,13 @@
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 #include <tf2_eigen/tf2_eigen.h>
 #include <affordance_primitives/screw_model/screw_axis.hpp>
+#include <affordance_primitives/screw_planning/screw_constraint.hpp>
 
 namespace ob = ompl::base;
 
 namespace ap_planning {
 
-/** Contains all the functionality for using collision checking during Ik
+/** Contains all the functionality for using collision checking during IK
  *
  * @param jmg The joint model group
  * @param robot_state The robot state object
@@ -58,6 +59,24 @@ bool ikCallbackFnAdapter(const moveit::core::JointModelGroupPtr jmg,
                          const planning_scene_monitor::LockedPlanningSceneRO ps,
                          const std::vector<double> &joints,
                          moveit_msgs::MoveItErrorCodes &error_code);
+
+/** Solves IK for a state and adds it to a list of valid states
+ *
+ * @param jmg The joint model group
+ * @param robot_state The robot state object. Current joint vals used as seed
+ * state
+ * @param psm The planning scene monitor to check against
+ * @param ik_solver IK Solver to use
+ * @param pose IK Pose
+ * @param state_list Valid poses, this wil expand if the found solution is
+ * sufficiently far from the other states in the list
+ */
+void increaseStateList(const moveit::core::JointModelGroupPtr jmg,
+                       const moveit::core::RobotStatePtr robot_state,
+                       const planning_scene_monitor::LockedPlanningSceneRO ps,
+                       const kinematics::KinematicsBasePtr ik_solver,
+                       const affordance_primitives::Pose &pose,
+                       std::vector<std::vector<double>> &state_list);
 
 ob::ValidStateSamplerPtr allocScrewValidSampler(const ob::SpaceInformation *si);
 
@@ -84,14 +103,16 @@ class ScrewValidSampler : public ob::ValidStateSampler {
   inline static std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
       planning_scene;
 
+  // Holds the constraints used for this plan
+  // NOTE: You must set this before creating instances of this class!
+  inline static std::shared_ptr<affordance_primitives::ScrewConstraint>
+      constraints;
+
  protected:
   ompl::RNG rng_;
-  ob::RealVectorBounds screw_bounds_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
   kinematics::KinematicsBasePtr ik_solver_;
-  affordance_primitives::ScrewAxis screw_axis_;
-  Eigen::Isometry3d start_pose_;
 };
 
 ob::StateSamplerPtr allocScrewSampler(const ob::StateSpace *state_space);
@@ -120,14 +141,16 @@ class ScrewSampler : public ob::StateSampler {
   inline static std::shared_ptr<planning_scene_monitor::LockedPlanningSceneRO>
       planning_scene;
 
+  // Holds the constraints used for this plan
+  // NOTE: You must set this before creating instances of this class!
+  inline static std::shared_ptr<affordance_primitives::ScrewConstraint>
+      constraints;
+
  protected:
   ompl::RNG rng_;
   moveit::core::RobotStatePtr kinematic_state_;
   moveit::core::JointModelGroupPtr joint_model_group_;
   kinematics::KinematicsBasePtr ik_solver_;
-  ob::RealVectorBounds screw_bounds_;
-  affordance_primitives::ScrewAxis screw_axis_;
-  Eigen::Isometry3d start_pose_;
 };
 
 }  // namespace ap_planning

@@ -18,6 +18,8 @@ DSSPlanner::DSSPlanner(const std::string& move_group_name,
 
   psm_ = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(
       robot_description_name_);
+  psm_->startSceneMonitor();
+  psm_->startStateMonitor();
 
   // Set kinematic model for classes that will need it
   ScrewSampler::kinematic_model = kinematic_model_;
@@ -34,9 +36,8 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
   res.percentage_complete = 0.0;
   res.trajectory_is_valid = false;
 
-  kinematic_state_ =
-      std::make_shared<moveit::core::RobotState>(kinematic_model_);
-  kinematic_state_->setToDefaultValues();
+  kinematic_state_ = std::make_shared<moveit::core::RobotState>(
+      *(psm_->getStateMonitor()->getCurrentState()));
 
   // Get the planning scene
   psm_->requestPlanningSceneState();
@@ -48,6 +49,9 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
   ScrewSampler::planning_scene = planning_scene_;
   ScrewValidSampler::planning_scene = planning_scene_;
   ScrewValidityChecker::planning_scene = planning_scene_;
+
+  // TODO make general for non-chained case
+  constraints_ = std::make_shared<affordance_primitives::ChainedScrews>();
 
   // Set up the state space for this plan
   if (!setupStateSpace(req)) {
@@ -71,6 +75,11 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
     return INITIALIZATION_FAIL;
   }
 
+  // Set constraints for classes that will need it
+  ScrewSampler::constraints = constraints_;
+  ScrewValidSampler::constraints = constraints_;
+  ScrewValidityChecker::constraints = constraints_;
+
   // Create start and goal states
   std::vector<std::vector<double>> start_configs, goal_configs;
   if (passed_start_config_) {
@@ -88,16 +97,14 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
   // Set the start states
   for (const auto& start_state : start_configs) {
     ss_->addStartState(
-        vectorToState(state_space_, std::vector<double>(1, 0), start_state));
+        vectorToState(state_space_, constraints_->lowerBounds(), start_state));
   }
 
   // Create and populate the goal object
   auto goal_obj = std::make_shared<ScrewGoal>(ss_->getSpaceInformation());
   for (const auto& goal_state : goal_configs) {
-    // TODO handle multi-screw
-    goal_obj->addState(vectorToState(
-        state_space_, std::vector<double>(1, req.screw_path.at(0).theta),
-        goal_state));
+    goal_obj->addState(
+        vectorToState(state_space_, constraints_->upperBounds(), goal_state));
   }
   ss_->setGoal(goal_obj);
 
@@ -119,6 +126,9 @@ void DSSPlanner::cleanUp() {
   ScrewSampler::planning_scene.reset();
   ScrewValidSampler::planning_scene.reset();
   ScrewValidityChecker::planning_scene.reset();
+  ScrewSampler::constraints.reset();
+  ScrewValidSampler::constraints.reset();
+  ScrewValidityChecker::constraints.reset();
 }
 
 bool DSSPlanner::setupStateSpace(const APPlanningRequest& req) {
@@ -129,9 +139,13 @@ bool DSSPlanner::setupStateSpace(const APPlanningRequest& req) {
   auto joint_space = std::make_shared<ob::RealVectorStateSpace>();
 
   // Add screw dimensions
-  // TODO: make sure the theta is positive
   for (const auto& segment : req.screw_path) {
-    screw_space->addDimension(0, segment.theta);
+    if (segment.start_theta > segment.end_theta) {
+      return false;
+    }
+    screw_space->addDimension(segment.start_theta, segment.end_theta);
+    constraints_->addScrewAxis(segment.screw_msg, segment.start_theta,
+                               segment.end_theta);
   }
 
   // Go through joint group and add bounds for each joint
@@ -163,31 +177,11 @@ bool DSSPlanner::setupStateSpace(const APPlanningRequest& req) {
 
 bool DSSPlanner::setSpaceParameters(const APPlanningRequest& req,
                                     ompl::base::StateSpacePtr& space) {
-  // We need to transform the screw to be in the starting frame
-  geometry_msgs::TransformStamped tf_msg = getStartTF(req);
+  // Handle the starting transformation
+  getStartTF(req);
 
-  // Set the screw axis from transformed screw
-  screw_axis_.setScrewAxis(req.screw_path.at(0).screw_msg);
-  // TODO handle multi-screw
-
-  // Calculate the goal pose and set
-  const Eigen::Isometry3d planning_to_start = tf2::transformToEigen(tf_msg);
-  // TODO handle multi-screw
-  goal_pose_ =
-      screw_axis_.getTF(req.screw_path.at(0).theta) * planning_to_start;
-
-  // Add screw param (from starting pose screw)
-  auto screw_param = std::make_shared<ap_planning::ScrewParam>("screw_param");
-  screw_param->setValue(
-      affordance_primitives::screwMsgToStr(req.screw_path.at(0).screw_msg));
-  space->params().add(screw_param);
-
-  // Add starting pose
-  auto pose_param = std::make_shared<ap_planning::PoseParam>("pose_param");
-  auto pose_msg = req.start_pose;
-  pose_msg.pose = tf2::toMsg(start_pose_);
-  pose_param->setValue(affordance_primitives::poseToStr(pose_msg));
-  space->params().add(pose_param);
+  // Solve the goal pose
+  goal_pose_ = constraints_->getPose(constraints_->upperBounds());
 
   // Add EE frame name and move group parameters
   auto ee_name_param =
@@ -202,35 +196,26 @@ bool DSSPlanner::setSpaceParameters(const APPlanningRequest& req,
   return true;
 }
 
-affordance_primitives::TransformStamped DSSPlanner::getStartTF(
-    const APPlanningRequest& req) {
-  geometry_msgs::TransformStamped tf_msg;
-
+void DSSPlanner::getStartTF(const APPlanningRequest& req) {
   // Check if a starting joint configuration was given
   if (req.start_joint_state.size() == joint_model_group_->getVariableCount()) {
     // Extract the start pose
     kinematic_state_->setJointGroupPositions(joint_model_group_.get(),
                                              req.start_joint_state);
     kinematic_state_->update(true);
-    auto pose_eig = kinematic_state_->getFrameTransform(req.ee_frame_name);
-    tf_msg = tf2::eigenToTransform(pose_eig);
+    start_pose_ = kinematic_state_->getFrameTransform(req.ee_frame_name);
     passed_start_config_ = true;
+    constraints_->setReferenceFrame(start_pose_);
   } else {
-    // Set start pose directly
-    tf_msg.transform.rotation = req.start_pose.pose.orientation;
-    tf_msg.transform.translation.x = req.start_pose.pose.position.x;
-    tf_msg.transform.translation.y = req.start_pose.pose.position.y;
-    tf_msg.transform.translation.z = req.start_pose.pose.position.z;
+    // Set pose directly
+    Eigen::Isometry3d tf_m_to_s;
+    tf2::fromMsg(req.start_pose.pose, tf_m_to_s);
+    constraints_->setReferenceFrame(tf_m_to_s);
+
+    // Solve start pose manually
+    start_pose_ = constraints_->getPose(constraints_->lowerBounds());
     passed_start_config_ = false;
   }
-
-  // Set the start pose
-  // TODO handle multi-screw
-  tf_msg.header.frame_id = req.screw_path.at(0).screw_msg.header.frame_id;
-  tf_msg.child_frame_id = req.ee_frame_name;
-  start_pose_ = tf2::transformToEigen(tf_msg);
-
-  return tf_msg;
 }
 
 bool DSSPlanner::setSimpleSetup(const ompl::base::StateSpacePtr& space,
@@ -278,23 +263,26 @@ bool DSSPlanner::findStartGoalStates(
   goal_configs.reserve(num_goal);
 
   geometry_msgs::Pose goal_pose_msg = tf2::toMsg(goal_pose_);
+  geometry_msgs::Pose start_pose_msg = tf2::toMsg(start_pose_);
 
   // Go through and make configurations
   size_t i = 0;
   while ((start_configs.size() < num_start || goal_configs.size() < num_goal) &&
          i < 2 * (num_goal + num_start)) {
     // Every time, we set to random states to get variety in solutions
-    kinematic_state_->setToRandomPositions();
+    kinematic_state_->setToRandomPositions(joint_model_group_.get());
     i++;
 
     // Try to add a start configuration
     if (start_configs.size() < num_start) {
-      increaseStateList(req.start_pose.pose, start_configs);
+      increaseStateList(joint_model_group_, kinematic_state_, *planning_scene_,
+                        ik_solver_, start_pose_msg, start_configs);
     }
 
     // Try to add a goal configuration
     if (goal_configs.size() < num_goal) {
-      increaseStateList(goal_pose_msg, goal_configs);
+      increaseStateList(joint_model_group_, kinematic_state_, *planning_scene_,
+                        ik_solver_, goal_pose_msg, goal_configs);
     }
   }
 
@@ -322,42 +310,15 @@ bool DSSPlanner::findGoalStates(
   size_t i = 0;
   while (goal_configs.size() < num_goal && i < 2 * num_goal) {
     // Try to add a goal configuration
-    increaseStateList(goal_pose_msg, goal_configs);
+    increaseStateList(joint_model_group_, kinematic_state_, *planning_scene_,
+                      ik_solver_, goal_pose_msg, goal_configs);
 
     // Every time, we set to random states to get variety in solutions
-    kinematic_state_->setToRandomPositions();
+    kinematic_state_->setToRandomPositions(joint_model_group_.get());
     i++;
   }
 
   return goal_configs.size() > 0;
-}
-
-void DSSPlanner::increaseStateList(
-    const affordance_primitives::Pose& pose,
-    std::vector<std::vector<double>>& state_list) {
-  // Set up IK callback
-  kinematics::KinematicsBase::IKCallbackFn ik_callback_fn =
-      [this](const geometry_msgs::Pose& pose, const std::vector<double>& joints,
-             moveit_msgs::MoveItErrorCodes& error_code) {
-        ikCallbackFnAdapter(joint_model_group_, kinematic_state_,
-                            *planning_scene_, joints, error_code);
-      };
-
-  // Try to solve the IK
-  std::vector<double> seed_state, ik_solution;
-  moveit_msgs::MoveItErrorCodes err;
-  kinematics::KinematicsQueryOptions opts;
-  kinematic_state_->copyJointGroupPositions(joint_model_group_.get(),
-                                            seed_state);
-  if (!ik_solver_->searchPositionIK(pose, seed_state, 0.05, ik_solution,
-                                    ik_callback_fn, err, opts)) {
-    return;
-  }
-
-  // If the solution is valid, add it to the list
-  if (checkDuplicateState(state_list, ik_solution)) {
-    state_list.push_back(ik_solution);
-  }
 }
 
 void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
@@ -376,6 +337,10 @@ void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
   const size_t num_joints = res.joint_trajectory.joint_names.size();
   res.joint_trajectory.points.reserve(solution.getStateCount());
 
+  // TODO make general for non-chained case
+  affordance_primitives::ChainedScrews& chained_cons =
+      dynamic_cast<affordance_primitives::ChainedScrews&>(*constraints_);
+
   // Go through each point and check it for validity
   for (const auto& state : solution.getStates()) {
     // Extract the state info
@@ -392,8 +357,13 @@ void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
       res.trajectory_is_valid = false;
 
       // Calculate the percent through the trajectory we made it
-      // TODO handle multi-screw
-      res.percentage_complete = screw_state[0] / req.screw_path.at(0).theta;
+      std::vector<double> phi(constraints_->size());
+      for (size_t i = 0; i < constraints_->size(); ++i) {
+        phi[i] = screw_state[i];
+      }
+      const double lambda = chained_cons.getLambda(phi);
+
+      res.percentage_complete = lambda / chained_cons.lambdaMax();
       return;
     }
 
@@ -413,15 +383,20 @@ void DSSPlanner::populateResponse(ompl::geometric::PathGeometric& solution,
       *solution.getStates().back()->as<ob::CompoundStateSpace::StateType>();
   const ob::RealVectorStateSpace::StateType& screw_state =
       *compound_state[0]->as<ob::RealVectorStateSpace::StateType>();
-  // TODO handle multi-screw
-  const double err = fabs(req.screw_path.at(0).theta - screw_state[0]);
+
+  std::vector<double> phi(constraints_->size());
+  for (size_t i = 0; i < constraints_->size(); ++i) {
+    phi[i] = screw_state[i];
+  }
+
+  const double lambda = chained_cons.getLambda(phi);
+  const double err = chained_cons.lambdaMax() - lambda;
   if (err > 0.01) {
     res.trajectory_is_valid = false;
   } else {
     res.trajectory_is_valid = true;
   }
-  // TODO handle multi-screw
-  res.percentage_complete = screw_state[0] / req.screw_path.at(0).theta;
+  res.percentage_complete = lambda / chained_cons.lambdaMax();
   res.path_length = solution.length();
 }
 }  // namespace ap_planning
