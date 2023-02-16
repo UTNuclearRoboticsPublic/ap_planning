@@ -39,6 +39,7 @@ catkin_package(
   include
  LIBRARIES
   ${PROJECT_NAME}
+  ${PROJECT_NAME}_plugins
  CATKIN_DEPENDS
   affordance_primitive_msgs
   affordance_primitives
@@ -68,7 +69,6 @@ include_directories(SYSTEM
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
   src/ap_planning.cpp
-  src/ik_solver.cpp
   src/sequential_step_planner.cpp
   src/dss_planner.cpp
   src/state_sampling.cpp
@@ -76,6 +76,12 @@ add_library(${PROJECT_NAME}
 )
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME} ${OMPL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
+add_library(${PROJECT_NAME}_plugins
+  src/ik_solver.cpp
+)
+add_dependencies(${PROJECT_NAME}_plugins ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(${PROJECT_NAME}_plugins ${OMPL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 add_executable(panda_demo src/panda_demo.cpp)
 target_link_libraries(panda_demo ${PROJECT_NAME})
@@ -91,7 +97,7 @@ target_link_libraries(multi_screw_demo ${PROJECT_NAME})
 #############
 
 install(
-  TARGETS ${PROJECT_NAME} multi_screw_demo panda_demo puma_tests
+  TARGETS ${PROJECT_NAME} multi_screw_demo panda_demo puma_tests ${PROJECT_NAME}_plugins
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
