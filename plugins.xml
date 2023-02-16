@@ -1,5 +1,5 @@
 
-<library path="lib/libap_planning">
+<library path="lib/libap_planning_plugins">
   <class type="ap_planning::IKSolver" base_class_type="ap_planning::IKSolverBase">
     <description>Uses IK to iteratively solve a screw planning problem</description>
   </class>
