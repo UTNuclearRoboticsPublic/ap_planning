@@ -92,6 +92,9 @@ target_link_libraries(puma_tests ${PROJECT_NAME})
 add_executable(multi_screw_demo src/multi_screw_demo.cpp)
 target_link_libraries(multi_screw_demo ${PROJECT_NAME})
 
+add_executable(multi_constraint_tester src/multi_constraint_tester.cpp)
+target_link_libraries(multi_constraint_tester ${PROJECT_NAME})
+
 #############
 ## Install ##
 #############
