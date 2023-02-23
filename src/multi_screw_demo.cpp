@@ -41,10 +41,10 @@ void show_multi_screw(const ap_planning::APPlanningRequest &req,
   // Get constraint
   auto constraint = req.toConstraint();
 
-  visual_tools.publishAxis(constraint.referenceFrame());
+  visual_tools.publishAxis(constraint->referenceFrame());
 
   // Plot each screw
-  const auto viz_screws = constraint.getVisualScrews();
+  const auto viz_screws = constraint->getVisualScrews();
   for (const auto &screw : viz_screws) {
     // Create points for plotting
     Eigen::Vector3d origin, axis;

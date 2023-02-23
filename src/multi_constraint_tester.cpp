@@ -246,7 +246,7 @@ int main(int argc, char** argv) {
   axis_msg.axis.z = 1;
   axis_msg.is_pure_translation = false;
   axis_msg.pitch = 0;
-  // constraints->addScrewAxis(axis_msg, 0, 0.5 * M_PI);
+  constraints->addScrewAxis(axis_msg, 0, 0.5 * M_PI);
 
   // Add the frame information
   geometry_msgs::Transform grasp;

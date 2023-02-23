@@ -246,7 +246,11 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
   setUp(res);
 
   // Set up a constraints class
-  affordance_primitives::ChainedScrews constraints = req.toConstraint();
+  auto constraints_base = req.toConstraint();
+
+  // TODO make general for non-chained case
+  affordance_primitives::ChainedScrews& constraints =
+      dynamic_cast<affordance_primitives::ChainedScrews&>(*constraints_base);
 
   // Make a new robot state
   moveit::core::RobotStatePtr current_state =
@@ -271,7 +275,7 @@ ap_planning::Result IKSolver::plan(const APPlanningRequest& req,
     first_pose = tf2::toMsg(constraints.referenceFrame());
   } else {
     // Calculate the starting pose
-    const auto tf_start_pose = constraints.getPose(constraints.lambdaMin());
+    const auto tf_start_pose = constraints.getPose(constraints.startPhi());
     first_pose = tf2::toMsg(tf_start_pose);
 
     // Calculate a bunch of starting joint configs
