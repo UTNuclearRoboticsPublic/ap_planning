@@ -110,7 +110,7 @@ struct APPlanningRequest {
 
   /** Converts the request to a Constraint object
    */
-  std::unique_ptr<affordance_primitives::ScrewConstraint> toConstraint() const;
+  std::shared_ptr<affordance_primitives::ScrewConstraint> toConstraint() const;
 };
 
 /**

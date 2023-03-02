@@ -3,13 +3,13 @@
 
 namespace ap_planning {
 
-std::unique_ptr<affordance_primitives::ScrewConstraint>
+std::shared_ptr<affordance_primitives::ScrewConstraint>
 APPlanningRequest::toConstraint() const {
-  std::unique_ptr<affordance_primitives::ScrewConstraint> output;
+  std::shared_ptr<affordance_primitives::ScrewConstraint> output;
   if (screw_path_type == UNCHAINED) {
-    output = std::make_unique<affordance_primitives::UnchainedScrews>();
+    output = std::make_shared<affordance_primitives::UnchainedScrews>();
   } else {
-    output = std::make_unique<affordance_primitives::ChainedScrews>();
+    output = std::make_shared<affordance_primitives::ChainedScrews>();
   }
 
   // Go through screw path and add each one
@@ -31,7 +31,7 @@ APPlanningRequest::toConstraint() const {
     output->setReferenceFrame(tf_m_to_s);
   }
 
-  return output;
+  return std::move(output);
 }
 
 }  // namespace ap_planning
