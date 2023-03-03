@@ -90,7 +90,9 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
       *compound_state[1]->as<ob::RealVectorStateSpace::StateType>();
 
   // Check screw bounds
+  std::vector<double> screw_space_state(constraints->size());
   for (size_t i = 0; i < constraints->size(); ++i) {
+    screw_space_state[i] = screw_state[i];
     if (screw_state[i] > constraints->upperBounds()[i] ||
         screw_state[i] < constraints->lowerBounds()[i]) {
       return false;
@@ -115,7 +117,7 @@ bool ScrewValidityChecker::isValid(const ob::State *state) const {
 
   // Call constraintFn
   affordance_primitives::ScrewConstraintSolution sol;
-  if (!constraints->constraintFn(this_state_pose, joint_state, sol)) {
+  if (!constraints->constraintFn(this_state_pose, screw_space_state, sol)) {
     return false;
   }
 

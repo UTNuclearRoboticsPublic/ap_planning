@@ -89,8 +89,8 @@ target_link_libraries(panda_demo ${PROJECT_NAME})
 add_executable(puma_tests src/puma_tests.cpp)
 target_link_libraries(puma_tests ${PROJECT_NAME})
 
-add_executable(multi_screw_demo src/multi_screw_demo.cpp)
-target_link_libraries(multi_screw_demo ${PROJECT_NAME})
+add_executable(chained_screws_demo src/chained_screws_demo.cpp)
+target_link_libraries(chained_screws_demo ${PROJECT_NAME})
 
 add_executable(multi_constraint_tester src/multi_constraint_tester.cpp)
 target_link_libraries(multi_constraint_tester ${PROJECT_NAME})
@@ -100,7 +100,7 @@ target_link_libraries(multi_constraint_tester ${PROJECT_NAME})
 #############
 
 install(
-  TARGETS ${PROJECT_NAME} multi_screw_demo panda_demo puma_tests ${PROJECT_NAME}_plugins
+  TARGETS ${PROJECT_NAME} chained_screws_demo panda_demo puma_tests ${PROJECT_NAME}_plugins
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}

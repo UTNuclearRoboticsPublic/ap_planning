@@ -137,10 +137,8 @@ std::queue<ap_planning::APPlanningRequest> get_planning_queue(
 
   single_request.screw_path.push_back(screw_0);
   single_request.screw_path.push_back(screw_1);
-  single_request.screw_path_type = ap_planning::ScrewPathType::UNCHAINED;
-  // single_request.screw_path.push_back(screw_2);
+  single_request.screw_path.push_back(screw_2);
   planning_queue.push(single_request);
-  single_request.screw_path_type = ap_planning::ScrewPathType::CHAINED;
 
   // Send another one
   single_request.screw_path.clear();
