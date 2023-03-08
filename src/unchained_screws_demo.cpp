@@ -108,6 +108,7 @@ std::queue<ap_planning::APPlanningRequest> get_planning_queue(
   single_request.start_pose.pose.orientation.w = 0;
 
   // Add some test cases
+  // Case 1
   screw_0.start_theta = 0.0;
   screw_0.end_theta = 0.2;
   screw_0.screw_msg.is_pure_translation = true;
@@ -124,7 +125,148 @@ std::queue<ap_planning::APPlanningRequest> get_planning_queue(
   single_request.screw_path.push_back(screw_1);
   planning_queue.push(single_request);
 
-  // // Send another one // CRASUN: uncomment these to add cases
+  // Case 2
+  single_request.screw_path.clear();
+  /* screw_0 = ap_planning::ScrewSegment(); */
+  /* screw_0.screw_msg.header.frame_id = "panda_link0"; */
+  screw_0.start_theta = 0.0;
+  screw_0.end_theta = 0.2;
+  screw_0.screw_msg.is_pure_translation = true;
+  screw_0.screw_msg.origin = single_request.start_pose.pose.position;
+  screw_0.screw_msg.axis.x = 1;
+
+  /* screw_1 = ap_planning::ScrewSegment(); */
+  /* screw_1.screw_msg.header.frame_id = "panda_link0"; */
+  screw_1.start_theta = 0.0;
+  screw_1.end_theta = 0.2;
+  screw_1.screw_msg.axis.y = 0;  // reset the setting from Case 1
+  screw_1.screw_msg.axis.z = 1;
+  screw_1.screw_msg.is_pure_translation = true;
+  screw_1.screw_msg.origin = single_request.start_pose.pose.position;
+
+  single_request.screw_path.push_back(screw_0);
+  single_request.screw_path.push_back(screw_1);
+  planning_queue.push(single_request);
+
+  // Case 3
+  // For now, all requests start at same point
+  single_request.start_pose.pose.position.x = 0.3;
+  single_request.start_pose.pose.position.z = 0.4;
+  single_request.start_pose.pose.orientation.x = 1.0;
+  single_request.start_pose.pose.orientation.w = 0;
+  single_request.screw_path.clear();
+  /* screw_0 = ap_planning::ScrewSegment(); */
+  /* screw_0.screw_msg.header.frame_id = "panda_link0"; */
+  screw_0.start_theta = 0.0;
+  screw_0.end_theta = 0.5 * M_PI;
+  screw_0.screw_msg.is_pure_translation = false;
+  screw_0.screw_msg.axis.x = 0;
+  screw_0.screw_msg.axis.z = -1;
+  screw_0.screw_msg.origin = single_request.start_pose.pose.position;
+  screw_0.screw_msg.origin.y += 0.1;
+
+  screw_1.start_theta = 0.0;
+  screw_1.end_theta = 0.5 * M_PI;
+  screw_1.screw_msg.is_pure_translation = false;
+  screw_1.screw_msg.axis.z = -1;
+  screw_1.screw_msg.origin = single_request.start_pose.pose.position;
+  screw_1.screw_msg.origin.y += 0.1;
+  /* screw_1 = ap_planning::ScrewSegment(); */
+  /* screw_1.screw_msg.header.frame_id = "panda_link0"; */
+  /* screw_1.start_theta = 0.0; */
+  /* screw_1.end_theta = 0.2; */
+  /* screw_1.screw_msg.axis.y = 0;  // reset the setting from Case 1 */
+  /* screw_1.screw_msg.axis.z = 1; */
+  /* screw_1.screw_msg.is_pure_translation = true; */
+  /* screw_1.screw_msg.origin = single_request.start_pose.pose.position; */
+
+  single_request.screw_path.push_back(screw_0);
+  single_request.screw_path.push_back(screw_1);
+  planning_queue.push(single_request);
+
+  // Case 4
+  // For now, all requests start at same point
+  single_request.start_pose.pose.position.x = 0.3;
+  single_request.start_pose.pose.position.z = 0.4;
+  single_request.start_pose.pose.orientation.x = 1.0;
+  single_request.start_pose.pose.orientation.w = 0;
+  single_request.screw_path.clear();
+  /* screw_0 = ap_planning::ScrewSegment(); */
+  /* screw_0.screw_msg.header.frame_id = "panda_link0"; */
+  screw_0.start_theta = 0.0;
+  screw_0.end_theta = 0.5 * M_PI;
+  screw_0.screw_msg.is_pure_translation = false;
+  screw_0.screw_msg.axis.x = 0;
+  screw_0.screw_msg.axis.z = -1;
+  screw_0.screw_msg.origin = single_request.start_pose.pose.position;
+  screw_0.screw_msg.origin.y += 0.1;
+
+  single_request.start_pose.pose.position.x = 0.2;
+  single_request.start_pose.pose.position.z = 0.4;
+  single_request.start_pose.pose.orientation.x = 1.0;
+  single_request.start_pose.pose.orientation.w = 0;
+
+  screw_1.start_theta = 0.0;
+  screw_1.end_theta = 0.5 * M_PI;
+  screw_1.screw_msg.is_pure_translation = false;
+  screw_1.screw_msg.axis.z = -1;
+  screw_1.screw_msg.origin = single_request.start_pose.pose.position;
+  screw_1.screw_msg.origin.y += 0.1;
+  /* screw_1 = ap_planning::ScrewSegment(); */
+  /* screw_1.screw_msg.header.frame_id = "panda_link0"; */
+  /* screw_1.start_theta = 0.0; */
+  /* screw_1.end_theta = 0.2; */
+  /* screw_1.screw_msg.axis.y = 0;  // reset the setting from Case 1 */
+  /* screw_1.screw_msg.axis.z = 1; */
+  /* screw_1.screw_msg.is_pure_translation = true; */
+  /* screw_1.screw_msg.origin = single_request.start_pose.pose.position; */
+
+  single_request.screw_path.push_back(screw_0);
+  single_request.screw_path.push_back(screw_1);
+  planning_queue.push(single_request);
+
+  // Case 5
+  // For now, all requests start at same point
+  single_request.start_pose.pose.position.x = 0.3;
+  single_request.start_pose.pose.position.z = 0.4;
+  single_request.start_pose.pose.orientation.x = 1.0;
+  single_request.start_pose.pose.orientation.w = 0;
+  single_request.screw_path.clear();
+  /* screw_0 = ap_planning::ScrewSegment(); */
+  /* screw_0.screw_msg.header.frame_id = "panda_link0"; */
+  screw_0.start_theta = 0.0;
+  screw_0.end_theta = 0.5 * M_PI;
+  screw_0.screw_msg.is_pure_translation = false;
+  screw_0.screw_msg.axis.x = 0;
+  screw_0.screw_msg.axis.y = -1;
+  screw_0.screw_msg.axis.z = 0;
+  screw_0.screw_msg.origin = single_request.start_pose.pose.position;
+  screw_0.screw_msg.origin.y += 0.1;
+
+  single_request.start_pose.pose.position.x = 0.2;
+  single_request.start_pose.pose.position.z = 0.4;
+  single_request.start_pose.pose.orientation.x = 1.0;
+  single_request.start_pose.pose.orientation.w = 0;
+
+  screw_1.start_theta = 0.0;
+  screw_1.end_theta = 0.5 * M_PI;
+  screw_1.screw_msg.is_pure_translation = false;
+  screw_1.screw_msg.axis.z = 1;
+  screw_1.screw_msg.origin = single_request.start_pose.pose.position;
+  screw_1.screw_msg.origin.y += 0.1;
+  /* screw_1 = ap_planning::ScrewSegment(); */
+  /* screw_1.screw_msg.header.frame_id = "panda_link0"; */
+  /* screw_1.start_theta = 0.0; */
+  /* screw_1.end_theta = 0.2; */
+  /* screw_1.screw_msg.axis.y = 0;  // reset the setting from Case 1 */
+  /* screw_1.screw_msg.axis.z = 1; */
+  /* screw_1.screw_msg.is_pure_translation = true; */
+  /* screw_1.screw_msg.origin = single_request.start_pose.pose.position; */
+
+  single_request.screw_path.push_back(screw_0);
+  single_request.screw_path.push_back(screw_1);
+  planning_queue.push(single_request);
+  // // Send another one
   // single_request.screw_path.clear();
   // screw_0 = ap_planning::ScrewSegment();
   // screw_0.screw_msg.header.frame_id = "panda_link0";
@@ -265,6 +407,73 @@ std::queue<moveit_msgs::CollisionObject> get_collision_objects() {
   collision_object.primitives.clear();
   collision_object.primitive_poses.clear();
 
+  /* Case 2 */
+  // Repeat // CRASUN: uncomment and modify to add collision object cases
+  collision_object.id = "screw1_box1";
+  primitive.dimensions[primitive.BOX_X] = 0.1;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.4;
+  box_pose.position.x = 0.25;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 1.5;
+
+  // Add screw one object
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  /* Case 3 */
+  // Repeat // CRASUN: uncomment and modify to add collision object cases
+  collision_object.id = "screw1_box1";
+  primitive.dimensions[primitive.BOX_X] = 0.1;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.4;
+  box_pose.position.x = 0.25;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 1.5;
+
+  // Add screw one object
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  /* Case 4 */
+  // Repeat // CRASUN: uncomment and modify to add collision object cases
+  collision_object.id = "screw1_box1";
+  primitive.dimensions[primitive.BOX_X] = 0.1;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.4;
+  box_pose.position.x = 0.25;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 1.5;
+
+  // Add screw one object
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
+
+  /* Case 5 */
+  // Repeat // CRASUN: uncomment and modify to add collision object cases
+  collision_object.id = "screw1_box1";
+  primitive.dimensions[primitive.BOX_X] = 0.1;
+  primitive.dimensions[primitive.BOX_Y] = 1.5;
+  primitive.dimensions[primitive.BOX_Z] = 0.4;
+  box_pose.position.x = 0.25;
+  box_pose.position.y = 0.0;
+  box_pose.position.z = 1.5;
+
+  // Add screw one object
+  collision_object.primitives.push_back(primitive);
+  collision_object.primitive_poses.push_back(box_pose);
+  output.push(collision_object);
+  collision_object.primitives.clear();
+  collision_object.primitive_poses.clear();
   // // Repeat // CRASUN: uncomment and modify to add collision object cases
   // collision_object.id = "screw2_box1";
   // primitive.dimensions[primitive.BOX_X] = 1.5;
