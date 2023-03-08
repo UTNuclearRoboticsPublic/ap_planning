@@ -110,11 +110,14 @@ ap_planning::Result DSSPlanner::plan(const APPlanningRequest& req,
   // Plan
   ob::PlannerStatus solved = ss_->solve(req.planning_time);
   ap_planning::Result result = PLANNING_FAIL;
-  if (solved) {
+  if (solved == ompl::base::PlannerStatus::EXACT_SOLUTION ||
+      solved == ompl::base::PlannerStatus::APPROXIMATE_SOLUTION) {
     ss_->simplifySolution(1.0);
 
     populateResponse(ss_->getSolutionPath(), req, res);
-    result = SUCCESS;
+    result = solved == ompl::base::PlannerStatus::EXACT_SOLUTION
+                 ? ap_planning::Result::SUCCESS
+                 : ap_planning::Result::PLANNING_FAIL;
   }
   cleanUp();
   return result;

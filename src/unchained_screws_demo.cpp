@@ -632,11 +632,11 @@ int main(int argc, char **argv) {
       auto stop = std::chrono::high_resolution_clock::now();
       auto duration =
           std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+      std::cout << "Trajectory is: " << result.percentage_complete * 100
+                << "% complete, and has length: " << result.path_length
+                << "\n";
       if (success == ap_planning::SUCCESS) {
         std::cout << "\n\n\nDSS planning: Success!!\n\n";
-        std::cout << "Trajectory is: " << result.percentage_complete * 100
-                  << "% complete, and has length: " << result.path_length
-                  << "\n";
 
         if (show_trajectories) {
           show_trajectory(result.joint_trajectory, visual_tools);
@@ -645,6 +645,11 @@ int main(int argc, char **argv) {
       } else {
         std::cout << "\n\n\nDSS planning: Fail (" << ap_planning::toStr(success)
                   << ")\n\n";
+        std::cout << result.percentage_complete << "\n";
+        if (show_trajectories && result.percentage_complete > 0.1) {
+          show_trajectory(result.joint_trajectory, visual_tools);
+          last_plan = result;
+        }
       }
 
       ss_dssp << sample << ", DSS, " << ap_planning::toStr(success) << ", "
