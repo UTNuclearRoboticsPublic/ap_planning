@@ -84,7 +84,7 @@ class IKSolver : public IKSolverBase {
 
   /** Verifies a single joint state transition
    *
-   * Checks each joint doesn't move too much, and TODO checks for singularity
+   * Checks each joint doesn't move too much
    *
    * @param point_a The start point (joint state)
    * @param point_b The end point (joint state)
