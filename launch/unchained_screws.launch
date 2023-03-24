@@ -1,0 +1,30 @@
+<launch>
+  <arg name="num_sampling" default="1" />
+  <arg name="show_trajectories" default="true" />
+  <arg name="add_collision_objects" default="true" />
+
+  <arg name="debug" default="false" />
+  <arg unless="$(arg debug)" name="launch_prefix" value="" />
+  <arg     if="$(arg debug)" name="launch_prefix" value="xterm -e gdb --args" />
+
+  <arg name="move_group_name" default="panda_arm" />
+  <arg name="ik_solver_name" default="ap_planning::IKSolver" />
+
+  <include file="$(find panda_moveit_config)/launch/planning_context.launch">
+    <arg name="load_robot_description" value="true"/>
+  </include>
+
+  <include file="$(find panda_moveit_config)/launch/demo.launch" >
+    <arg name="use_rviz" value="false"/>
+  </include>
+
+  <node name="panda_rviz" pkg ="rviz" type ="rviz" args ="-d $(find ap_planning)/config/panda.rviz"/>
+
+  <node name="unchained_screws_demo" pkg="ap_planning" type="unchained_screws_demo" respawn="false" output="screen" launch-prefix="$(arg launch_prefix)">
+    <rosparam command="load" file="$(find ap_planning)/config/panda_tracik_kinematics.yaml"/>
+    <param name="move_group_name" type="string" value="$(arg move_group_name)" />
+    <param name="num_sampling" type="int" value="$(arg num_sampling)" />
+    <param name="show_trajectories" type="bool" value="$(arg show_trajectories)" />
+    <param name="add_collision_objects" type="bool" value="$(arg add_collision_objects)" />
+  </node>
+</launch>

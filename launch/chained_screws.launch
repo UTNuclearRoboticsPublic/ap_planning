@@ -21,7 +21,7 @@
 
   <node name="panda_rviz" pkg ="rviz" type ="rviz" args ="-d $(find ap_planning)/config/panda.rviz"/>
 
-  <node name="multi_screw_demo" pkg="ap_planning" type="multi_screw_demo" respawn="false" output="screen" launch-prefix="$(arg launch_prefix)">
+  <node name="chained_screws_demo" pkg="ap_planning" type="chained_screws_demo" respawn="false" output="screen" launch-prefix="$(arg launch_prefix)">
     <rosparam command="load" file="$(find ap_planning)/config/panda_tracik_kinematics.yaml"/>
     <param name="move_group_name" type="string" value="$(arg move_group_name)" />
     <param name="ik_solver_name" type="string" value="$(arg ik_solver_name)" />

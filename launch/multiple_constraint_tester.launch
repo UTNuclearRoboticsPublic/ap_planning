@@ -1,0 +1,10 @@
+<launch>
+  <!-- <arg name="sim" default="true" /> -->
+
+  <node name="multi_constraint_tester" pkg="ap_planning" type="multi_constraint_tester" output="screen" >
+    <!-- <param name="sim" type="bool" value="$(arg sim)" /> -->
+  </node>
+
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find ap_planning)/config/multi_constraint.rviz" />
+
+</launch>
