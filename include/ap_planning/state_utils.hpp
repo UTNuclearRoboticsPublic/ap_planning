@@ -69,54 +69,6 @@ ompl::base::ScopedState<> vectorToState(ompl::base::StateSpacePtr space,
                                         const std::vector<double> &robot_state);
 
 /**
- * Allows passing screw parameters into the planning instance
- */
-class ScrewParam : public ob::GenericParam {
- public:
-  ScrewParam(std::string name) : GenericParam(name) {}
-
-  std::string getValue() const override {
-    return affordance_primitives::screwMsgVectorToStr(screw_msgs_);
-  }
-
-  bool setValue(const std::string &value) {
-    auto decoded = affordance_primitives::strToScrewMsgVector(value);
-    if (decoded.size() > 0) {
-      screw_msgs_ = decoded;
-      return true;
-    }
-    return false;
-  }
-
- protected:
-  std::vector<affordance_primitive_msgs::ScrewStamped> screw_msgs_;
-};
-
-/**
- * Allows passing pose parameters into the planning instance
- */
-class PoseParam : public ob::GenericParam {
- public:
-  PoseParam(std::string name) : GenericParam(name) {}
-
-  std::string getValue() const override {
-    return affordance_primitives::poseToStr(pose_msg_);
-  }
-
-  bool setValue(const std::string &value) {
-    auto decoded = affordance_primitives::strToPose(value);
-    if (decoded) {
-      pose_msg_ = *decoded;
-      return true;
-    }
-    return false;
-  }
-
- protected:
-  geometry_msgs::PoseStamped pose_msg_;
-};
-
-/**
  * Allows passing string parameters into the planning instance
  */
 class StringParam : public ob::GenericParam {

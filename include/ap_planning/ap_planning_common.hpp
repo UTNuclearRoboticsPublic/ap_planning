@@ -36,7 +36,9 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <trajectory_msgs/JointTrajectory.h>
 #include <affordance_primitives/screw_planning/chained_screws.hpp>
+#include <affordance_primitives/screw_planning/unchained_screws.hpp>
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -49,6 +51,8 @@ enum Result {
   INVALID_TRANSITION,
   PLANNING_FAIL
 };
+
+enum ScrewPathType { CHAINED, UNCHAINED };
 
 inline std::string toStr(const Result result) {
   switch (result) {
@@ -76,8 +80,13 @@ enum PlannerType { PRM, PRMstar, RRT, RRTconnect };
  */
 struct ScrewSegment {
   affordance_primitive_msgs::ScrewStamped screw_msg;
+
+  // User CAN set bounds. If they do not, we start/end
+  // TODO: fancy work to allow relaxing start/end
   double start_theta;
   double end_theta;
+  std::optional<double> lower_bound{std::nullopt};
+  std::optional<double> upper_bound{std::nullopt};
 };
 
 /**
@@ -88,6 +97,7 @@ struct ScrewSegment {
  * given with respect to the planning frame
  */
 struct APPlanningRequest {
+  ScrewPathType screw_path_type{CHAINED};
   std::vector<ScrewSegment> screw_path;
   std::string ee_frame_name;
 
@@ -99,10 +109,8 @@ struct APPlanningRequest {
   geometry_msgs::PoseStamped start_pose;
 
   /** Converts the request to a Constraint object
-   *
-   * TODO: make this generic, not just for derived Chained case
    */
-  affordance_primitives::ChainedScrews toConstraint() const;
+  std::shared_ptr<affordance_primitives::ScrewConstraint> toConstraint() const;
 };
 
 /**
