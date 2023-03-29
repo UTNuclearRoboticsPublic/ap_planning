@@ -4,30 +4,14 @@ This repository contains the code for pre-planning kinematic trajectories for sc
 # Install
 Note that this work is currently only supported for ROS Noetic.
 ```sh
-sudo apt install python3-vcstool
-git clone https://github.com/UTNuclearRobotics/ap_planning.git
-vcs import < ap_planning/repos.yaml
+git clone https://github.com/UTNuclearRoboticsPublic/ap_planning.git
+git clone -b noetic https://github.com/UTNuclearRobotics/affordance_primitives.git
 rosdep install --from-paths . --ignore-src -y
 catkin build --cmake-args -DCMAKE_BUILD_TYPE=Release
 ```
 
-# Demonstrations
-After sourcing the workspace, there are a number of demonstrations you can run:
-
-```sh
-# Basic demo with Panda manipulator. Use 'next' button in Rviz to proceed between cases
-roslaunch ap_planning panda_sampling.launch
-```
-
-```sh
-# Also uses the Panda arm, but contains more complex, multi-step paths
-roslaunch ap_planning multi_screw.launch
-```
-
-```sh
-# Some test cases with a Puma560 manipulator mounted on a holonomic mobile base
-roslaunch ap_planning puma_sampling.launch
-```
+# Examples
+There are a number of examples available in the [AP Planning Examples](https://github.com/UTNuclearRoboticsPublic/ap_planning_examples) repository, please see there for information on how to install and run these examples.
 
 # Planning Overview
 See [the paper](#citation) for details of the planning algorithms. There are two methods: Sequential Path Stepping (SPS) and Direct Screw Sampling (DSS). In general, SPS is very fast and good at generating plans in uncluttered environments. DSS is slower, but better at planning around obstacles or for long, complex paths. The set up and interface for both are basically identical. 
