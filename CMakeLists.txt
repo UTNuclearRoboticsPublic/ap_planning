@@ -43,7 +43,6 @@ catkin_package(
  CATKIN_DEPENDS
   affordance_primitive_msgs
   affordance_primitives
-  bio_ik
   moveit_core
   moveit_ros_planning_interface
   roscpp
@@ -69,8 +68,8 @@ include_directories(SYSTEM
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
   src/ap_planning.cpp
-  src/sequential_step_planner.cpp
   src/dss_planner.cpp
+  src/sequential_step_planner.cpp
   src/state_sampling.cpp
   src/state_utils.cpp
 )
@@ -83,27 +82,12 @@ add_library(${PROJECT_NAME}_plugins
 add_dependencies(${PROJECT_NAME}_plugins ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}_plugins ${OMPL_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
-add_executable(panda_demo src/panda_demo.cpp)
-target_link_libraries(panda_demo ${PROJECT_NAME})
-
-add_executable(puma_tests src/puma_tests.cpp)
-target_link_libraries(puma_tests ${PROJECT_NAME})
-
-add_executable(chained_screws_demo src/chained_screws_demo.cpp)
-target_link_libraries(chained_screws_demo ${PROJECT_NAME})
-
-add_executable(unchained_screws_demo src/unchained_screws_demo.cpp)
-target_link_libraries(unchained_screws_demo ${PROJECT_NAME})
-
-add_executable(multi_constraint_tester src/multi_constraint_tester.cpp)
-target_link_libraries(multi_constraint_tester ${PROJECT_NAME})
-
 #############
 ## Install ##
 #############
 
 install(
-  TARGETS ${PROJECT_NAME} chained_screws_demo panda_demo puma_tests ${PROJECT_NAME}_plugins unchained_screws_demo
+  TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_plugins
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}

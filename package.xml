@@ -22,11 +22,6 @@
   <depend>roscpp</depend>
   <depend>tf2_eigen</depend>
 
-  <exec_depend>bio_ik</exec_depend>
-  <exec_depend>panda_moveit_config</exec_depend>
-  <exec_depend>puma560_moveit_config</exec_depend>
-  <exec_depend>trac_ik</exec_depend>
-
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <build_type>catkin</build_type>
